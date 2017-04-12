@@ -1,0 +1,445 @@
+;;;; Find optimal length solutions for Pyramid Solitaire according to
+;;;; Microsoft Solitaire Collection rules:
+;;;; - 28 cards are on the table in a pyramid formation, and the other 24 are
+;;;;   in a stack called the deck with only the top card showing.  There's also
+;;;;   a waste pile which starts out empty.
+;;;; - The goal is to remove all the 28 cards on the table.  The deck and waste
+;;;;   pile can still have cards.
+;;;; - Remove pairs of cards that add up to 13, or Kings by themselves because
+;;;;   they already count as 13.  Jacks are 11, Queens are 12, Aces are 1.
+;;;; - You can draw a card from the top of the deck onto the top of the waste
+;;;;   pile.
+;;;; - The only cards you can remove are the uncovered cards on the table, and
+;;;;   the cards at the top of the deck and the top of the waste pile.
+;;;; - You can cycle through the deck 3 times by recycling the waste pile.
+;;;;   This means drawing all the cards on the waste pile back onto the deck so
+;;;;   that you go through the deck in the same order again.  You can only
+;;;;   recycle the waste pile twice.
+;;;;
+;;;; The solution will be a list of the following types of steps:
+;;;; - Draw a card from the deck to the waste pile
+;;;; - Recycle the waste pile back into the deck
+;;;; - Remove a king by itself
+;;;; - Remove a pair of cards that add up to 13
+
+(in-package #:pyramid-solver)
+
+
+
+;;; Card and Deck definitions
+;;; Cards are two-letter strings of rank (A23456789TJQK) and suit (cdhs),
+;;; for example "Ks" or "7c".
+;;; Decks are lists of 52 cards.
+;;; Performance isn't really important for these since we'll only use them
+;;; to precalculate things we want to know before starting the solver.
+
+(defun card-rank (card)
+  "Return CARD's rank as a character."
+  (schar card 0))
+
+(defun card-king-p (card)
+  "Return T if the card is a King."
+  (char= (card-rank card) #\K))
+
+(defun card-bucket (card)
+  "Return a numeric value for CARD's rank for use when bucketing cards by rank."
+  (position (card-rank card) "KA23456789TJQ"))
+
+(defun cards-match-p (card1 card2)
+  "Return T if CARD1 and CARD2 are a pair that add up to 13."
+  (= 13 (+ (card-bucket card1) (card-bucket card2))))
+
+(defun card-match-table (deck)
+  "Create an array of arrays of booleans indicating which cards match together."
+  ;; the usage is taking one card and finding which cards out of a list of
+  ;; other cards match with it, so for performance we use arrays of arrays
+  ;; instead of a 2D array
+  (let ((table (make-array 52)))
+    (dotimes (index1 52 table)
+      (setf (svref table index1) (make-array 52))
+      (dotimes (index2 52)
+        (setf (svref (svref table index1) index2)
+              (cards-match-p (svref deck index1) (svref deck index2)))))))
+
+
+
+;;; Table definitions
+;;; Out of the 52 card deck, the first 28 are part of the pyramid on the table
+;;; and the remaining 24 are deck/waste cards.
+;;; The 28 cards on the table are indexed like this:
+;;;             00
+;;;           01  02
+;;;         03  04  05
+;;;       06  07  08  09
+;;;     10  11  12  13  14
+;;;   15  16  17  18  19  20
+;;; 21  22  23  24  25  26  27
+;;; 
+;;; Some of the following definitions are just numbers because the values
+;;; themselves are easier to understand visually than the code to generate them.
+;;;
+;;; The masks involve 52 bits where the nth bit being zero means the
+;;; nth card in the deck was removed.  Bits 0-27 are the 28 table cards and
+;;; bits 28-51 are the deck/waste cards.
+
+(defvar *table-first-child-index*
+  #(1 3 4 6 7 8 10 11 12 13 15 16 17 18 19 21 22 23 24 25 26)
+  "For each table card index, the index of its first child card.
+The second child is 1+ the first, but the bottom row indexes have no children.")
+
+(defvar *table-unrelated-indexes*
+  #(()
+    (2 5 9 14 20 27)
+    (1 3 6 10 15 21)
+    (2 4 5 8 9 13 14 19 20 26 27)
+    (3 5 6 9 10 14 15 20 21 27)
+    (1 3 4 6 7 10 11 15 16 21 22)
+    (2 4 5 7 8 9 12 13 14 18 19 20 25 26 27)
+    (5 6 8 9 10 13 14 15 19 20 21 26 27)
+    (3 6 7 9 10 11 14 15 16 20 21 22 27)
+    (1 3 4 6 7 8 10 11 12 15 16 17 21 22 23)
+    (2 4 5 7 8 9 11 12 13 14 17 18 19 20 24 25 26 27)
+    (5 8 9 10 12 13 14 15 18 19 20 21 25 26 27)
+    (6 9 10 11 13 14 15 16 19 20 21 22 26 27)
+    (3 6 7 10 11 12 14 15 16 17 20 21 22 23 27)
+    (1 3 4 6 7 8 10 11 12 13 15 16 17 18 21 22 23 24)
+    (2 4 5 7 8 9 11 12 13 14 16 17 18 19 20 23 24 25 26 27)
+    (5 8 9 12 13 14 15 17 18 19 20 21 24 25 26 27)
+    (9 10 13 14 15 16 18 19 20 21 22 25 26 27)
+    (6 10 11 14 15 16 17 19 20 21 22 23 26 27)
+    (3 6 7 10 11 12 15 16 17 18 20 21 22 23 24 27)
+    (1 3 4 6 7 8 10 11 12 13 15 16 17 18 19 21 22 23 24 25)
+    (2 4 5 7 8 9 11 12 13 14 16 17 18 19 20 22 23 24 25 26 27)
+    (5 8 9 12 13 14 17 18 19 20 21 23 24 25 26 27)
+    (9 13 14 15 18 19 20 21 22 24 25 26 27)
+    (10 14 15 16 19 20 21 22 23 25 26 27)
+    (6 10 11 15 16 17 20 21 22 23 24 26 27)
+    (3 6 7 10 11 12 15 16 17 18 21 22 23 24 25 27)
+    (1 3 4 6 7 8 10 11 12 13 15 16 17 18 19 21 22 23 24 25 26))
+  "The table cards that aren't covering/covered by the table card index.")
+
+;;; The idea behind *TABLE-UNCOVERED-MASKS* and UNWINNABLE-MASKS is that
+;;; we want to test for two things:
+;;; 1) The table card exists (hasn't been removed).
+;;; 2) The other cards in the mask don't exist (have been removed).
+;;; If these two are true then:
+;;; - For *TABLE-UNCOVERED-MASKS* the table card is there and its children are
+;;;   not, meaning it's uncovered and a candidate for removal if there's a
+;;;   matching card.
+;;; - For UNWINNABLE-MASKS the table card is there but any potential matching
+;;;   card to remove it with is gone, meaning the game is unwinnable.
+
+(defvar *table-uncovered-masks*
+  (apply #'vector
+         (loop for i from 0 to 27
+               for card-mask = (ash 1 i)
+               if (< i 21)
+               collect (logior card-mask
+                               (ash #b11 (svref *table-first-child-index* i)))
+               else
+               collect card-mask))
+  "Bit masks for the table cards to test if the card is uncovered.")
+
+(defun unwinnable-masks (deck)
+  "Return bit masks for the table cards to test if the card can't be removed."
+  (let ((masks (make-array 28)))
+    (dotimes (card-index 28 masks)
+      (let ((mask 0)
+            (card (svref deck card-index))
+            (unrelated-indexes (svref *table-unrelated-indexes* card-index)))
+        (unless (card-king-p card) ; kings are always removable so let it be 0
+          (setf mask (ash 1 card-index))
+          (dotimes (i 52)
+            (when (and (or (> i 27)
+                          (find i unrelated-indexes))
+                      (cards-match-p card (svref deck i)))
+              (setf mask (logior mask (ash 1 i))))))
+        (setf (svref masks card-index) mask)))))
+
+
+
+;;; Current Deck definitions
+;;; These special variables below contain precalculated data for a given card
+;;; deck to help the solver go faster.  The Nth index of each variable
+;;; contains info on the Nth card in the deck.
+(defvar *cards* nil "The cards in the deck")
+(defvar *kings* nil "Which cards in the deck are kings")
+(defvar *card-buckets* nil "The bucket number of each card in the deck")
+(defvar *unwinnable-masks* nil "The unwinnable mask for each card")
+(defvar *card-matches* nil "Which cards match with each card")
+
+(defmacro with-deck (deck &body body)
+  `(let* ((*cards* (apply #'vector ,deck))
+          (*kings* (map 'vector #'card-king-p *cards*))
+          (*card-buckets* (map 'vector #'card-bucket *cards*))
+          (*unwinnable-masks* (unwinnable-masks *cards*))
+          (*card-matches* (card-match-table *cards*)))
+     ,@body))
+
+
+
+;;; Action definitions
+;;; Actions are represented by 54-bit values
+;;; Bits 0-51 when set, represent removing the cards at those indexes.
+;;; Bit 52 set = Draw a card from the deck to the waste pile
+;;; Bit 53 set = Recycle the waste pile back onto the deck
+(deftype action ()
+  '(unsigned-byte 54))
+
+(defconstant +action-draw+ (ash 1 52))
+(defconstant +action-recycle+ (ash 1 53))
+
+(defun action (action)
+  "Convert action values into objects that are both human and Lisp readable."
+  (cond ((eql action +action-draw+) "Draw")
+        ((eql action +action-recycle+) "Recycle")
+        (t (loop for i from 0 to 51
+                 for flag = 1 then (ash flag 1)
+                 unless (eql 0 (logand flag action))
+                 collect (svref *cards* i)))))
+
+
+
+;;; State definitions
+;;; The "state of the world" of each step while playing Pyramid Solitaire.
+;;;
+;;; The state is represented as a 60-bit value:
+;;; - Bits 0-51 represent the existence of each card in the deck
+;;;   - Bits 0-27 are the 28 table cards
+;;;   - Bits 28-51 are the 24 deck/waste cards
+;;; - Bits 52-57 is a 6-bit number from 28-52 to indicate the deck index
+;;;   - The card at the deck index is the top of the deck.
+;;;   - Cards with index above the deck index are the rest of the deck cards.
+;;;   - Cards with index below the deck index are the waste pile, the closest
+;;;     one to the deck index is the top of the waste pile.
+;;;   - Deck index value 52 means the deck is empty.
+;;;   - Waste index value 27 means the waste pile is empty.
+;;; - Bits 58-60 is a 2-bit number indicating which cycle through the deck
+;;;   the player is on.  It can be a number from 1-3 inclusive.
+;;;
+;;; The main functions here are:
+;;; - STATE-GOAL-P: did we win the game?
+;;; - STATE-H-COST: estimate for A* how many more steps to win
+;;; - STATE-UNWINNABLE-P: is the game now unwinnable?
+;;; - STATE-SUCCESSORS: what actions can you take from this state?
+
+(deftype state ()
+  '(unsigned-byte 60))
+
+(defun card-exists-p (exist-flags card-index)
+  (not (eql 0 (logand exist-flags (ash 1 card-index)))))
+
+(defun deck-empty-p (deck-index)
+  (= deck-index 52))
+
+(defun waste-empty-p (waste-index)
+  (= waste-index 27))
+
+(defun make-state (exist-flags deck-index cycle)
+  "Return a new state encapsulating the EXIST-FLAGS, DECK-INDEX, and CYCLE."
+  (do ((index deck-index (1+ index)))
+      ((or (deck-empty-p index) (card-exists-p exist-flags index))
+       (logior exist-flags (ash index 52) (ash cycle 58)))))
+
+(defvar *initial-state*
+  (make-state (mask-field (byte 52 0) (lognot 0)) 28 1))
+
+(defun state-fields (state)
+  "Return the fields in STATE (exist-flags, deck-index, waste-index, cycle)."
+  (let ((exist-flags (mask-field (byte 52 0) state))
+        (deck-index (ldb (byte 6 52) state))
+        (cycle (ldb (byte 2 58) state)))
+    (do ((waste-index (1- deck-index) (1- waste-index)))
+        ((or (waste-empty-p waste-index)
+             (card-exists-p exist-flags waste-index))
+         (values exist-flags deck-index waste-index cycle)))))
+
+(defun state-goal-p (state)
+  "Return T if the state has all the 28 table cards removed, NIL otherwise."
+  (eql 0 (mask-field (byte 28 0) state)))
+
+(defun state-h-cost (state)
+  "Return an estimate of how many steps to reach the goal (clear the table)."
+  (let ((buckets (make-array 13 :initial-element 0)))
+    (dotimes (i 28)
+      (unless (eql 0 (logand (ash 1 i) state))
+        (incf (svref buckets (svref *card-buckets* i)))))
+    (+ (svref buckets 0)
+       (loop for bucket1 from 1 to 6
+             for bucket2 from 12 downto 7
+             sum (max (svref buckets bucket1) (svref buckets bucket2))))))
+
+(defun state-only-card-exists-p (state table-index masks)
+  "Return T if the TABLE-INDEX card exists, but the other cards are gone."
+  (eql (ash 1 table-index) (logand state (svref masks table-index))))
+
+(defun state-unwinnable-p (state)
+  "Return T if the state is definitely unwinnable, NIL otherwise.
+NIL doesn't guarantee it's winnable however."
+  (dotimes (i 28)
+    (when (state-only-card-exists-p state i *unwinnable-masks*)
+      (return-from state-unwinnable-p t))))
+
+(defun state-uncovered-table-indexes (state)
+  "Return a list of the table indexes that have uncovered cards."
+  (let ((uncovered-indexes '()))
+    (dotimes (i 28 uncovered-indexes)
+      (when (state-only-card-exists-p state i *table-uncovered-masks*)
+        (push i uncovered-indexes)))))
+
+(defun state-successors (state)
+  "Return (action . state) pairs for each applicable action step from STATE."
+  (multiple-value-bind (exist-flags deck-index waste-index cycle)
+      (state-fields state)
+    (let ((uncovered-indexes (state-uncovered-table-indexes state))
+          (successors '()))
+      (labels ((add (action exist-flags deck-index cycle)
+                 (push (cons action (make-state exist-flags deck-index cycle))
+                       successors))
+               (recycle ()
+                 (add +action-recycle+ exist-flags 28 (1+ cycle)))
+               (draw ()
+                 (add +action-draw+ exist-flags (1+ deck-index) cycle))
+               (remove-king (king-index)
+                 (let ((mask (ash 1 king-index)))
+                   (add mask (logandc1 mask exist-flags) deck-index cycle)))
+               (remove-pair (index1 index2)
+                 (let* ((bit1 (ash 1 index1))
+                        (bit2 (ash 1 index2))
+                        (mask (logior bit1 bit2)))
+                   (add mask (logandc1 mask exist-flags) deck-index cycle))))
+        (when (and (deck-empty-p deck-index) (< cycle 3))
+          (recycle))
+        (unless (deck-empty-p deck-index)
+          (draw))
+        (when (and (not (deck-empty-p deck-index))
+                   (not (waste-empty-p waste-index))
+                   (svref (svref *card-matches* deck-index) waste-index))
+          (remove-pair deck-index waste-index))
+        (when (and (not (deck-empty-p deck-index))
+                   (svref *kings* deck-index))
+          (remove-king deck-index))
+        (when (and (not (waste-empty-p waste-index))
+                   (svref *kings* waste-index))
+          (remove-king waste-index))
+        (loop for indexes on uncovered-indexes
+              for index1 = (first indexes)
+              for index1-matches = (svref *card-matches* index1)
+              when (svref *kings* index1)
+              do (remove-king index1)
+              when (and (not (deck-empty-p deck-index))
+                        (svref index1-matches deck-index))
+              do (remove-pair index1 deck-index)
+              when (and (not (waste-empty-p waste-index))
+                        (svref index1-matches waste-index))
+              do (remove-pair index1 waste-index)
+              do (loop for index2 in (rest indexes)
+                       when (svref index1-matches index2)
+                       do (remove-pair index1 index2))))
+      successors)))
+
+
+;;; Search Node definitions
+(defstruct (node (:type vector))
+  "A search node used for A* search."
+  (state *initial-state* :type state)
+  (parent nil :type node)
+  (action 0 :type action)
+  (depth 0 :type (integer 0 100)))
+   
+(defun actions (node)
+  "Return a list of Lisp-readable actions to go from the initial node to NODE."
+  (when (and node (node-parent node))
+      (append (actions (node-parent node))
+              (list (action (node-action node))))))
+
+
+
+;;; Fringe definitions
+;;; The fringe, or frontier, holds search nodes to be visited for A* search.
+;;; This fringe is hardcoded to only allow priority 0 to 100 inclusive.
+;;; Because of this, and because the only functionality we need to support is
+;;; to add/remove/check if empty, we can use a bucket queue instead of a
+;;; general purpose priority queue for speed.  There isn't functionality to
+;;; replace an existing fringe node with a new one (in case you reach the same
+;;; state with a shorter path) because it seems to be slower to do this work
+;;; compared to letting the old nodes stay.
+(defclass fringe ()
+  ((items :accessor fringe-items
+          :initform (make-array 101 :initial-element nil)
+          :type (simple-vector 101)
+          :documentation "A vector of lists of nodes indexed by priority.")
+   (front :accessor fringe-front
+          :initform 101
+          :type (integer 0 101)
+          :documentation "The bucket index with the lowest priority item.")
+   (count :accessor fringe-count
+          :initform 0
+          :type fixnum
+          :documentation "The total number of items in the fringe."))
+  (:documentation "A bucket queue for priorities from 0 - 100.
+This is a fast priority queue when you know the priorities are a small range.
+It's an array of buckets, index N of the array holds a list of items with
+priority N."))
+
+(defun make-fringe ()
+  "Return a new empty fringe."
+  (make-instance 'fringe))
+
+(defun fringe-add (fringe node priority)
+  "Add NODE to the FRINGE with the given PRIORITY."
+  (incf (fringe-count fringe))
+  (push node (svref (fringe-items fringe) priority))
+  (when (< priority (fringe-front fringe))
+    (setf (fringe-front fringe) priority)))
+
+(defun fringe-empty-p (fringe)
+  "Return T if FRINGE is empty, NIL otherwise."
+  (zerop (fringe-count fringe)))
+
+(defun fringe-remove (fringe)
+  "Remove and return the lowest priority node in FRINGE."
+  (unless (fringe-empty-p fringe)
+    (with-accessors ((items fringe-items) (front fringe-front)) fringe
+      (prog1
+          (pop (svref items front))
+        (decf (fringe-count fringe))
+        (when (null (svref items front))
+          (setf (fringe-front fringe)
+                (if (fringe-empty-p fringe)
+                    101
+                  (loop for i from (1+ front) to 100
+                        unless (null (svref items i))
+                        return i))))))))
+
+
+(defvar *num-states* 0)
+
+;;; A* solver for Pyramid Solitaire
+(defun solve (list-of-card-strings)
+  "Given a 52 card deck, set up Pyramid Solitaire and return a solution or NIL."
+  (with-deck list-of-card-strings
+    (let* ((fringe (make-fringe))
+           (seen-states (make-hash-table :test #'eql))
+           (state *initial-state*)
+           (node (make-node :state state :action 0 :parent nil :depth 0)))
+      (unless (state-unwinnable-p state)
+        (fringe-add fringe node (state-h-cost state)))
+      (setf *num-states* 0)
+      (loop
+       (when (fringe-empty-p fringe) (return-from solve nil))
+       (setf node (fringe-remove fringe))
+       (setf state (node-state node))
+       (incf *num-states*)
+       (when (state-goal-p state) (return-from solve (actions node)))
+       (loop with next-depth = (1+ (node-depth node))
+             for (action . next-state) in (state-successors state)
+             for seen-depth = (gethash next-state seen-states)
+             when (or (not seen-depth) (< next-depth seen-depth))
+             do
+             (setf (gethash next-state seen-states) next-depth)
+             (unless (state-unwinnable-p next-state)
+               (fringe-add fringe
+                           (make-node :state next-state :action action
+                                      :parent node :depth next-depth)
+                           (+ next-depth (state-h-cost next-state)))))))))
