@@ -241,15 +241,6 @@ uncovered table card indexes match EXPECTED."
 ;;; 9d  Td  Jd  Qd  Kd  Ah  2h
 ;;; 3h 4h 5h 6h 7h 8h 9h Th Jh Qh Kh As 2s 3s 4s 5s 6s 7s 8s 9s Ts Js Qs Ks
 
-(defun deck-with-cards-swapped (&rest card-pairs)
-  (let* ((new-deck (copy-seq *deck*)))
-    (loop for (card1 . card2) in card-pairs
-          for pos1 = (position card1 new-deck :test #'equal)
-          for pos2 = (position card2 new-deck :test #'equal)
-          do (setf (svref new-deck pos1) card2
-                   (svref new-deck pos2) card1))
-    new-deck))
-
 (defun make-state (exist-flags deck-index cycle)
   "Return a state created directly without moving deck-index to a valid value."
   (logior exist-flags (ash deck-index 52) (ash cycle 58)))

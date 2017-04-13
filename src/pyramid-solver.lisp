@@ -243,6 +243,7 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
 
 (declaim (inline card-exists-p))
 (defun card-exists-p (exist-flags card-index)
+  "Return T if the card at CARD-INDEX has not been removed, NIL otherwise."
   (declare (optimize (speed 3) (safety 0))
            (type exist-flags exist-flags)
            (type card-index card-index))
@@ -250,17 +251,18 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
 
 (declaim (inline deck-empty-p))
 (defun deck-empty-p (deck-index)
+  "Return T if the DECK-INDEX indicates the deck is empty."
   (declare (optimize (speed 3) (safety 0))
            (type deck-index deck-index))
   (= deck-index 52))
 
 (declaim (inline waste-empty-p))
 (defun waste-empty-p (waste-index)
+  "Return T if the WASTE-INDEX indicates the waste pile is empty."
   (declare (optimize (speed 3) (safety 0))
            (type waste-index waste-index))
   (= waste-index 27))
 
-(declaim (notinline make-state))
 (defun make-state (exist-flags deck-index cycle)
   "Return a new state encapsulating the EXIST-FLAGS, DECK-INDEX, and CYCLE."
   (declare (optimize (speed 3) (safety 0))
@@ -277,7 +279,6 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
 (defvar *initial-state*
   (make-state (mask-field (byte 52 0) (lognot 0)) 28 1))
 
-(declaim (notinline state-fields))
 (defun state-fields (state)
   "Return the fields in STATE (exist-flags, deck-index, waste-index, cycle)."
   (declare (optimize (speed 3) (safety 0))
