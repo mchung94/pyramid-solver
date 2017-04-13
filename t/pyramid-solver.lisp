@@ -12,10 +12,14 @@
   "All the cards in a 52-card deck.")
 
 (defvar *shortest-solution-deck*
-  '("Kd" "Kc" "Qh" "Ah" "7d" "6d" "8d" "5d" "9d" "4d" "Td" "3d" "Jd"
-    "2d" "Qd" "Ad" "7c" "6c" "8c" "5c" "9c" "4c" "Tc" "3c" "Jc" "2c"
-    "Qc" "Ac" "6h" "7h" "5h" "8h" "4h" "9h" "3h" "Th" "2h" "Jh" "Kh"
-    "As" "2s" "3s" "4s" "5s" "6s" "7s" "8s" "9s" "Ts" "Js" "Qs" "Ks")
+  "         Kd
+          Kc  Qh
+        Ah  7d  6d
+      8d  5d  9d  4d
+    Td  3d  Jd  2d  Qd
+  Ad  7c  6c  8c  5c  9c
+4c  Tc  3c  Jc  2c  Qc  Ac
+6h 7h 5h 8h 4h 9h 3h Th 2h Jh Kh As 2s 3s 4s 5s 6s 7s 8s 9s Ts Js Qs Ks"
   "This deck should have a solution with 15 steps.")
 
 (defvar *full-state*
@@ -161,6 +165,18 @@ indexes that are neither covering nor covered by each other."
     (let ((one-card-state (ps::make-state 1 28 1)))
       (is-false (ps::state-goal-p one-card-state)))))
 
+(test state-h-cost
+  (ps::with-deck *deck*
+    (is (= 16 (ps::state-h-cost *full-state*)))))
+
+(test state-h-cost-empty-table
+  (ps::with-deck *deck*
+    (is-true (zerop (ps::state-h-cost *empty-state*)))))
+
+(test state-h-cost-partial-table
+  (ps::with-deck *deck*
+    (is (= 14 (ps::state-h-cost (logandc1 (ash #b11 25) *full-state*))))))
+
 (test state-unwinnable-p-with-unwinnable-state
   (ps::with-deck
       '("2d" "9s" "7c" "5d" "2s" "Qc" "Jd" "5c" "Jc" "Td" "4s" "6s" "8c"
@@ -260,70 +276,57 @@ uncovered table card indexes match EXPECTED."
         collect (cons (ps::action action) state)))
 
 (defun successors-diffs (deck starting-state expected-data)
-  "Compare expected and actual successors and return what's missing in each."
+  "Compare expected and actual successors and test what's missing in each."
   (ps::with-deck deck
     (let ((expected (expected-successors deck starting-state expected-data))
           (actual (actual-successors starting-state)))
-      (cons (set-difference expected actual :test #'equal) ; not in actual
-            (set-difference actual expected :test #'equal))))) ; not in expected
+      ;; check what's in expected but not in actual
+      (is (null (set-difference expected actual :test #'equal)))
+      ;; check what's in actual but not in expected
+      (is (null (set-difference actual expected :test #'equal))))))
 
 (test state-successors-part1
-  (is (equal '(nil . nil)
-             (successors-diffs
-              *deck*
-              *full-state*
-              '(; case 4: can't recycle because the deck isn't empty
-                ("Draw" 29 1) ; case 1
-                (("Jd" "2h") 28 1) ; case 9
-                (("Qd" "Ah") 28 1) ; case 9
-                (("Kd") 28 1) ; case 6
-                (("Td" "3h") 29 1)))))) ; case 10
+  (successors-diffs *deck* *full-state*
+                    '(; case 4: can't recycle because the deck isn't empty
+                      ("Draw" 29 1) ; case 1
+                      (("Jd" "2h") 28 1) ; case 9
+                      (("Qd" "Ah") 28 1) ; case 9
+                      (("Kd") 28 1) ; case 6
+                      (("Td" "3h") 29 1)))) ; case 10
 
 (test state-successors-recycle
-  (is (equal '(nil . nil)
-             (successors-diffs
-              *deck*
-              (make-state (1- (expt 2 52)) 52 1)
-              '( ; case 2: can't draw because deck is empty
-                ("Recycle" 28 2) ; case 3
-                (("Jd" "2h") 52 1) ; case 9
-                (("Qd" "Ah") 52 1) ; case 9
-                (("Kd") 52 1) ; case 6
-                (("Ks") 52 1)))))) ; case 8
+  (successors-diffs *deck* (make-state (1- (expt 2 52)) 52 1)
+                    '( ; case 2: can't draw because deck is empty
+                      ("Recycle" 28 2) ; case 3
+                      (("Jd" "2h") 52 1) ; case 9
+                      (("Qd" "Ah") 52 1) ; case 9
+                      (("Kd") 52 1) ; case 6
+                      (("Ks") 52 1)))) ; case 8
        
 (test state-successors-cycle3
-  (is (equal '(nil . nil)
-             (successors-diffs
-              *deck*
-              (make-state (1- (expt 2 52)) 52 3)
-              '( ; case 5: can't recycle because it's cycle 3
-                (("Jd" "2h") 52 3) ; case 9
-                (("Qd" "Ah") 52 3) ; case 9
-                (("Kd") 52 3) ; case 6
-                (("Ks") 52 3)))))) ; case 8
+  (successors-diffs *deck* (make-state (1- (expt 2 52)) 52 3)
+                    '( ; case 5: can't recycle because it's cycle 3
+                      (("Jd" "2h") 52 3) ; case 9
+                      (("Qd" "Ah") 52 3) ; case 9
+                      (("Kd") 52 3) ; case 6
+                      (("Ks") 52 3)))) ; case 8
 
 (test state-successors-recycle
-  (is (equal '(nil . nil)
-             (successors-diffs
-              *deck*
-              (make-state (1- (expt 2 52)) 51 1)
-              '(("Draw" 52 1) ; case 1
-                (("Jd" "2h") 51 1) ; case 9
-                (("Qd" "Ah") 51 1) ; case 9
-                (("Kd") 51 1) ; case 6
-                (("Ah" "Qs") 51 1) ; case 11
-                (("Ks") 52 1)))))) ; case 7
+  (successors-diffs *deck* (make-state (1- (expt 2 52)) 51 1)
+                    '(("Draw" 52 1) ; case 1
+                      (("Jd" "2h") 51 1) ; case 9
+                      (("Qd" "Ah") 51 1) ; case 9
+                      (("Kd") 51 1) ; case 6
+                      (("Ah" "Qs") 51 1) ; case 11
+                      (("Ks") 52 1)))) ; case 7
 
 (test state-successors-deck-and-waste-pair
-  (is (equal '(nil . nil)
-             (successors-diffs
-              *deck*
-              (make-state (1- (expt 2 52)) 32 1)
-              '((("6h" "7h") 33 1) ; case 12
-                ("Draw" 33 1) ; case 1
-                (("Jd" "2h") 32 1) ; case 9
-                (("Qd" "Ah") 32 1) ; case 9
-                (("Kd") 32 1)))))) ; case 6
+  (successors-diffs *deck* (make-state (1- (expt 2 52)) 32 1)
+                    '((("6h" "7h") 33 1) ; case 12
+                      ("Draw" 33 1) ; case 1
+                      (("Jd" "2h") 32 1) ; case 9
+                      (("Qd" "Ah") 32 1) ; case 9
+                      (("Kd") 32 1)))) ; case 6
 
 (test solve-minimal
   (is (= 15 (length (solve *shortest-solution-deck*)))))

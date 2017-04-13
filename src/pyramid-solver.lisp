@@ -226,62 +226,128 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
 (deftype state ()
   '(unsigned-byte 60))
 
-(defun card-exists-p (exist-flags card-index)
-  (not (eql 0 (logand exist-flags (ash 1 card-index)))))
+(deftype exist-flags ()
+  '(unsigned-byte 52))
 
+(deftype deck-index ()
+  '(integer 28 52)) ; 52 = empty deck
+
+(deftype waste-index ()
+  '(integer 27 51)) ; 27 = empty waste pile
+
+(deftype cycle ()
+  '(integer 1 3))
+
+(deftype card-index ()
+  '(integer 0 51))
+
+(declaim (inline card-exists-p))
+(defun card-exists-p (exist-flags card-index)
+  (declare (optimize (speed 3) (safety 0))
+           (type exist-flags exist-flags)
+           (type card-index card-index))
+  (not (eql 0 (logand exist-flags (the exist-flags (ash 1 card-index))))))
+
+(declaim (inline deck-empty-p))
 (defun deck-empty-p (deck-index)
+  (declare (optimize (speed 3) (safety 0))
+           (type deck-index deck-index))
   (= deck-index 52))
 
+(declaim (inline waste-empty-p))
 (defun waste-empty-p (waste-index)
+  (declare (optimize (speed 3) (safety 0))
+           (type waste-index waste-index))
   (= waste-index 27))
 
+(declaim (notinline make-state))
 (defun make-state (exist-flags deck-index cycle)
   "Return a new state encapsulating the EXIST-FLAGS, DECK-INDEX, and CYCLE."
+  (declare (optimize (speed 3) (safety 0))
+           (type exist-flags exist-flags)
+           (type deck-index deck-index)
+           (type cycle cycle))
   (do ((index deck-index (1+ index)))
       ((or (deck-empty-p index) (card-exists-p exist-flags index))
-       (logior exist-flags (ash index 52) (ash cycle 58)))))
+       (logior exist-flags
+               (the exist-flags (ash index 52))
+               (the exist-flags (ash cycle 58))))
+    (declare (type deck-index index))))
 
 (defvar *initial-state*
   (make-state (mask-field (byte 52 0) (lognot 0)) 28 1))
 
+(declaim (notinline state-fields))
 (defun state-fields (state)
   "Return the fields in STATE (exist-flags, deck-index, waste-index, cycle)."
+  (declare (optimize (speed 3) (safety 0))
+           (type state state))
   (let ((exist-flags (mask-field (byte 52 0) state))
         (deck-index (ldb (byte 6 52) state))
         (cycle (ldb (byte 2 58) state)))
+    (declare (type exist-flags exist-flags)
+             (type deck-index deck-index)
+             (type cycle cycle))
     (do ((waste-index (1- deck-index) (1- waste-index)))
         ((or (waste-empty-p waste-index)
              (card-exists-p exist-flags waste-index))
-         (values exist-flags deck-index waste-index cycle)))))
+         (values exist-flags deck-index waste-index cycle))
+      (declare (type waste-index waste-index)))))
 
 (defun state-goal-p (state)
   "Return T if the state has all the 28 table cards removed, NIL otherwise."
+  (declare (optimize (speed 3) (safety 0))
+           (type state state))
   (eql 0 (mask-field (byte 28 0) state)))
 
 (defun state-h-cost (state)
   "Return an estimate of how many steps to reach the goal (clear the table)."
-  (let ((buckets (make-array 13 :initial-element 0)))
+  (declare (optimize (speed 3) (safety 0))
+           (type state state))
+  (let ((buckets (make-array 13 :initial-element 0))
+        (mask 1))
+    (declare (type (unsigned-byte 28) mask))
     (dotimes (i 28)
-      (unless (eql 0 (logand (ash 1 i) state))
-        (incf (svref buckets (svref *card-buckets* i)))))
-    (+ (svref buckets 0)
-       (loop for bucket1 from 1 to 6
-             for bucket2 from 12 downto 7
-             sum (max (svref buckets bucket1) (svref buckets bucket2))))))
+      (unless (eql 0 (logand mask state))
+        (let ((bucket (svref *card-buckets* i)))
+          (setf (svref buckets bucket)
+                (1+ (the (integer 0 3) (svref buckets bucket))))))
+      (setf mask (ash mask 1)))
+    (do ((i 1 (1+ i))
+         (cost (svref buckets 0)
+               (the (integer 0 28)
+                    (+ cost 
+                       (max (the (integer 0 4) (svref buckets i))
+                            (the (integer 0 4) (svref buckets (- 13 i))))))))
+         ((= i 7) cost)
+      (declare (type (integer 1 7) i)
+               (type (integer 0 28) cost)))))
 
+(declaim (inline state-only-card-exists-p))
 (defun state-only-card-exists-p (state table-index masks)
   "Return T if the TABLE-INDEX card exists, but the other cards are gone."
-  (eql (ash 1 table-index) (logand state (svref masks table-index))))
+  (declare (optimize (speed 3) (safety 0))
+           (type state state)
+           (type (integer 0 27) table-index))
+  (let ((card-exists-bit (ash 1 table-index))
+        (mask (svref masks table-index)))
+    (declare (type (unsigned-byte 28) card-exists-bit)
+             (type exist-flags mask))
+    (eql card-exists-bit (logand state mask))))
 
 (defun state-unwinnable-p (state)
   "Return T if the state is definitely unwinnable, NIL otherwise.
 NIL doesn't guarantee it's winnable however."
+  (declare (optimize (speed 3) (safety 0))
+           (type state state))
   (dotimes (i 28)
     (when (state-only-card-exists-p state i *unwinnable-masks*)
       (return-from state-unwinnable-p t))))
 
 (defun state-uncovered-table-indexes (state)
   "Return a list of the table indexes that have uncovered cards."
+  (declare (optimize (speed 3) (safety 0))
+           (type state state))
   (let ((uncovered-indexes '()))
     (dotimes (i 28 uncovered-indexes)
       (when (state-only-card-exists-p state i *table-uncovered-masks*)
@@ -289,8 +355,14 @@ NIL doesn't guarantee it's winnable however."
 
 (defun state-successors (state)
   "Return (action . state) pairs for each applicable action step from STATE."
+  (declare (optimize (speed 3) (safety 0))
+           (type state state))
   (multiple-value-bind (exist-flags deck-index waste-index cycle)
       (state-fields state)
+    (declare (type exist-flags exist-flags)
+             (type deck-index deck-index)
+             (type waste-index waste-index)
+             (type cycle cycle))
     (let ((uncovered-indexes (state-uncovered-table-indexes state))
           (successors '()))
       (labels ((add (action exist-flags deck-index cycle)
@@ -300,44 +372,35 @@ NIL doesn't guarantee it's winnable however."
                  (add +action-recycle+ exist-flags 28 (1+ cycle)))
                (draw ()
                  (add +action-draw+ exist-flags (1+ deck-index) cycle))
-               (remove-king (king-index)
-                 (let ((mask (ash 1 king-index)))
+               (remove-king (index)
+                 (let ((mask (ash 1 index)))
+                   (declare (type exist-flags mask))
                    (add mask (logandc1 mask exist-flags) deck-index cycle)))
                (remove-pair (index1 index2)
                  (let* ((bit1 (ash 1 index1))
                         (bit2 (ash 1 index2))
                         (mask (logior bit1 bit2)))
+                   (declare (type exist-flags bit1 bit2 mask))
                    (add mask (logandc1 mask exist-flags) deck-index cycle))))
+        (declare (inline add recycle draw remove-king remove-pair))
         (when (and (deck-empty-p deck-index) (< cycle 3))
           (recycle))
         (unless (deck-empty-p deck-index)
+          (push deck-index uncovered-indexes)
           (draw))
-        (when (and (not (deck-empty-p deck-index))
-                   (not (waste-empty-p waste-index))
-                   (svref (svref *card-matches* deck-index) waste-index))
-          (remove-pair deck-index waste-index))
-        (when (and (not (deck-empty-p deck-index))
-                   (svref *kings* deck-index))
-          (remove-king deck-index))
-        (when (and (not (waste-empty-p waste-index))
-                   (svref *kings* waste-index))
-          (remove-king waste-index))
+        (unless (waste-empty-p waste-index)
+          (push waste-index uncovered-indexes))
         (loop for indexes on uncovered-indexes
-              for index1 = (first indexes)
+              for index1 of-type card-index = (first indexes)
               for index1-matches = (svref *card-matches* index1)
-              when (svref *kings* index1)
-              do (remove-king index1)
-              when (and (not (deck-empty-p deck-index))
-                        (svref index1-matches deck-index))
-              do (remove-pair index1 deck-index)
-              when (and (not (waste-empty-p waste-index))
-                        (svref index1-matches waste-index))
-              do (remove-pair index1 waste-index)
-              do (loop for index2 in (rest indexes)
-                       when (svref index1-matches index2)
-                       do (remove-pair index1 index2))))
+              do (if (svref *kings* index1)
+                     (remove-king index1)
+                   (loop for index2 of-type card-index in (rest indexes)
+                         do (when (svref index1-matches index2)
+                              (remove-pair index1 index2))))))
       successors)))
-
+      
+        
 
 ;;; Search Node definitions
 (defstruct (node (:type vector))
@@ -388,17 +451,21 @@ priority N."))
 
 (defun fringe-add (fringe node priority)
   "Add NODE to the FRINGE with the given PRIORITY."
+  (declare (optimize (speed 3) (safety 0)))
   (incf (fringe-count fringe))
   (push node (svref (fringe-items fringe) priority))
   (when (< priority (fringe-front fringe))
     (setf (fringe-front fringe) priority)))
 
+(declaim (inline fringe-empty-p))
 (defun fringe-empty-p (fringe)
   "Return T if FRINGE is empty, NIL otherwise."
+  (declare (optimize (speed 3) (safety 0)))
   (zerop (fringe-count fringe)))
 
 (defun fringe-remove (fringe)
   "Remove and return the lowest priority node in FRINGE."
+  (declare (optimize (speed 3) (safety 0)))
   (unless (fringe-empty-p fringe)
     (with-accessors ((items fringe-items) (front fringe-front)) fringe
       (prog1
@@ -413,12 +480,26 @@ priority N."))
                         return i))))))))
 
 
+
+(defun deck-string->card-list (deck-string)
+  "Convert a string containing two-letter cards into a list of cards."
+  (when deck-string
+    (let ((card-chars (with-input-from-string (in deck-string)
+                        (loop for ch = (read-char in nil)
+                              while ch
+                              when (or (find (char-downcase ch) "cdhs")
+                                       (find (char-upcase ch) "A23456789TJQK"))
+                              collect it))))
+      (loop for (rank suit) on card-chars by #'cddr
+            collect (format nil "~A~A" rank suit)))))
+  
 (defvar *num-states* 0)
 
 ;;; A* solver for Pyramid Solitaire
-(defun solve (list-of-card-strings)
+(defun solve (deck-string)
   "Given a 52 card deck, set up Pyramid Solitaire and return a solution or NIL."
-  (with-deck list-of-card-strings
+  (declare (optimize (speed 3) (safety 0)))
+  (with-deck (deck-string->card-list deck-string)
     (let* ((fringe (make-fringe))
            (seen-states (make-hash-table :test #'eql))
            (state *initial-state*)
@@ -443,3 +524,22 @@ priority N."))
                            (make-node :state next-state :action action
                                       :parent node :depth next-depth)
                            (+ next-depth (state-h-cost next-state)))))))))
+
+(defun run-decks (&optional (filename "resources/random-decks.txt"))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((start-time 0)
+        (solution nil)
+        (total-time 0))
+    (with-open-file (in filename)
+      (loop for deck-string = (read-line in nil)
+            for deck-counter from 1
+            while deck-string
+            do (progn
+                 (hcl:clean-down t)
+                 (setf start-time (get-internal-real-time))
+                 (setf solution (solve deck-string))
+                 (setf total-time (- (get-internal-real-time) start-time))
+                 (format t "~S~%" (list (deck-string->card-list deck-string)
+                                        solution
+                                        deck-counter
+                                        total-time)))))))
