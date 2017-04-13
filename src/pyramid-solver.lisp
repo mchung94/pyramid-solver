@@ -514,8 +514,8 @@ priority N."))
        (when (state-goal-p state) (return-from solve (actions node)))
        (loop with next-depth of-type (integer 0 100) = (1+ (node-depth node))
              for (action . next-state) in (state-successors state)
-             for seen-depth of-type (integer 0 100) = (gethash next-state
-							       seen-states)
+             for seen-depth of-type (or null (integer 0 100)) =
+                 (gethash next-state seen-states)
              when (or (not seen-depth) (< next-depth seen-depth))
              do
              (setf (gethash next-state seen-states) next-depth)
