@@ -6,9 +6,9 @@
 (in-suite pyramid-solver-tests)
 
 (defvar *deck*
-  (loop for suit across "cdhs"
-        append (loop for rank across "A23456789TJQK"
-                     collect (format nil "~A~A" rank suit)))
+  (apply #'vector (loop for suit across "cdhs"
+		     append (loop for rank across "A23456789TJQK"
+			       collect (format nil "~A~A" rank suit))))
   "All the cards in a 52-card deck.")
 
 (defvar *shortest-solution-deck*
@@ -31,10 +31,10 @@
   "A state where all the cards are removed.")
 
 (test card-king-p
-  (dolist (card *deck*)
-    (if (char= (schar card 0) #\K)
-        (is-true (ps::card-king-p card))
-      (is-false (ps::card-king-p card)))))
+  (loop for card across *deck*
+       do (if (char= (schar card 0) #\K)
+	      (is-true (ps::card-king-p card))
+	      (is-false (ps::card-king-p card)))))
 
 (test cards-match-p
   (flet ((ranks-match (rank1 rank2)
@@ -52,11 +52,11 @@
              (#\J (char= rank2 #\2))
              (#\Q (char= rank2 #\A))
              (otherwise nil))))
-    (dolist (card1 *deck*)
-      (dolist (card2 *deck*)
-        (if (ranks-match (schar card1 0) (schar card2 0))
-            (is-true (ps::cards-match-p card1 card2))
-          (is-false (ps::cards-match-p card1 card2)))))))
+    (loop for card1 across *deck*
+	 do (loop for card2 across *deck*
+		 do (if (ranks-match (schar card1 0) (schar card2 0))
+			(is-true (ps::cards-match-p card1 card2))
+			(is-false (ps::cards-match-p card1 card2)))))))
 
 (defun first-child-indexes ()
   "Generate a vector of each index's first child, for those that have one."
@@ -179,7 +179,7 @@ indexes that are neither covering nor covered by each other."
 
 (test state-unwinnable-p-with-unwinnable-state
   (ps::with-deck
-      '("2d" "9s" "7c" "5d" "2s" "Qc" "Jd" "5c" "Jc" "Td" "4s" "6s" "8c"
+      #("2d" "9s" "7c" "5d" "2s" "Qc" "Jd" "5c" "Jc" "Td" "4s" "6s" "8c"
         "8s" "Jh" "5h" "As" "Js" "6d" "2c" "Qd" "Qh" "4c" "8h" "Ks" "7d"
         "Ah" "4d" "9h" "3d" "5s" "4h" "Th" "Ad" "3s" "8d" "Ts" "Tc" "9d"
         "Kc" "7h" "Kd" "6h" "Qs" "2h" "Ac" "7s" "6c" "3c" "3h" "9c" "Kh")
@@ -187,7 +187,7 @@ indexes that are neither covering nor covered by each other."
     
 (test state-unwinnable-p-with-winnable-state
   (ps::with-deck
-      '("6d" "5h" "Ah" "Jd" "4s" "Ks" "6s" "8c" "2h" "4d" "9s" "Kd" "6c"
+      #("6d" "5h" "Ah" "Jd" "4s" "Ks" "6s" "8c" "2h" "4d" "9s" "Kd" "6c"
         "Ad" "8s" "Ac" "5c" "9d" "7h" "3h" "8d" "5s" "4c" "Qc" "Jh" "Kc"
         "Kh" "3c" "3s" "9c" "As" "5d" "Qh" "Ts" "4h" "7s" "Td" "9h" "Th"
         "7c" "8h" "2c" "7d" "Tc" "2d" "6h" "2s" "Js" "Qd" "3d" "Qs" "Jc")

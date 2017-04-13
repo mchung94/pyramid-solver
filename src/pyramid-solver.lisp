@@ -169,11 +169,12 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
 (defvar *card-matches* nil "Which cards match with each card")
 
 (defmacro with-deck (deck &body body)
-  `(let* ((*cards* (apply #'vector ,deck))
+  `(let* ((*cards* ,deck)
           (*kings* (map 'vector #'card-king-p *cards*))
           (*card-buckets* (map 'vector #'card-bucket *cards*))
           (*unwinnable-masks* (unwinnable-masks *cards*))
           (*card-matches* (card-match-table *cards*)))
+     (declare (type simple-vector *cards*))
      ,@body))
 
 
@@ -272,8 +273,8 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
   (do ((index deck-index (1+ index)))
       ((or (deck-empty-p index) (card-exists-p exist-flags index))
        (logior exist-flags
-               (the exist-flags (ash index 52))
-               (the exist-flags (ash cycle 58))))
+               (the (unsigned-byte 58) (ash index 52))
+               (the (unsigned-byte 60) (ash cycle 58))))
     (declare (type deck-index index))))
 
 (defvar *initial-state*
@@ -407,7 +408,7 @@ NIL doesn't guarantee it's winnable however."
 (defstruct (node (:type vector))
   "A search node used for A* search."
   (state *initial-state* :type state)
-  (parent nil :type node)
+  (parent nil :type (or null (simple-vector 4)))
   (action 0 :type action)
   (depth 0 :type (integer 0 100)))
    
@@ -453,25 +454,26 @@ priority N."))
 (defun fringe-add (fringe node priority)
   "Add NODE to the FRINGE with the given PRIORITY."
   (declare (optimize (speed 3) (safety 0)))
-  (incf (fringe-count fringe))
+  (incf (the fixnum (fringe-count fringe)))
   (push node (svref (fringe-items fringe) priority))
-  (when (< priority (fringe-front fringe))
+  (when (< priority (the fixnum (fringe-front fringe)))
     (setf (fringe-front fringe) priority)))
 
 (declaim (inline fringe-empty-p))
 (defun fringe-empty-p (fringe)
   "Return T if FRINGE is empty, NIL otherwise."
   (declare (optimize (speed 3) (safety 0)))
-  (zerop (fringe-count fringe)))
+  (zerop (the fixnum (fringe-count fringe))))
 
 (defun fringe-remove (fringe)
   "Remove and return the lowest priority node in FRINGE."
   (declare (optimize (speed 3) (safety 0)))
   (unless (fringe-empty-p fringe)
     (with-accessors ((items fringe-items) (front fringe-front)) fringe
+      (declare (type (integer 0 100) front))
       (prog1
           (pop (svref items front))
-        (decf (fringe-count fringe))
+        (decf (the fixnum (fringe-count fringe)))
         (when (null (svref items front))
           (setf (fringe-front fringe)
                 (if (fringe-empty-p fringe)
@@ -492,31 +494,28 @@ priority N."))
                                        (find (char-upcase ch) "A23456789TJQK"))
                               collect it))))
       (loop for (rank suit) on card-chars by #'cddr
-            collect (format nil "~A~A" rank suit)))))
+	 collect (format nil "~A~A" rank suit)))))
   
-(defvar *num-states* 0)
-
 ;;; A* solver for Pyramid Solitaire
 (defun solve (deck-string)
   "Given a 52 card deck, set up Pyramid Solitaire and return a solution or NIL."
   (declare (optimize (speed 3) (safety 0)))
-  (with-deck (deck-string->card-list deck-string)
+  (with-deck (apply #'vector (deck-string->card-list deck-string))
     (let* ((fringe (make-fringe))
            (seen-states (make-hash-table :test #'eql))
            (state *initial-state*)
            (node (make-node :state state :action 0 :parent nil :depth 0)))
       (unless (state-unwinnable-p state)
         (fringe-add fringe node (state-h-cost state)))
-      (setf *num-states* 0)
       (loop
        (when (fringe-empty-p fringe) (return-from solve nil))
        (setf node (fringe-remove fringe))
        (setf state (node-state node))
-       (incf *num-states*)
        (when (state-goal-p state) (return-from solve (actions node)))
-       (loop with next-depth = (1+ (node-depth node))
+       (loop with next-depth of-type (integer 0 100) = (1+ (node-depth node))
              for (action . next-state) in (state-successors state)
-             for seen-depth = (gethash next-state seen-states)
+             for seen-depth of-type (integer 0 100) = (gethash next-state
+							       seen-states)
              when (or (not seen-depth) (< next-depth seen-depth))
              do
              (setf (gethash next-state seen-states) next-depth)
@@ -524,7 +523,9 @@ priority N."))
                (fringe-add fringe
                            (make-node :state next-state :action action
                                       :parent node :depth next-depth)
-                           (+ next-depth (state-h-cost next-state)))))))))
+                           (+ next-depth
+			      (the (integer 0 100)
+				   (state-h-cost next-state))))))))))
 
 (defun run-decks (&optional (filename "resources/random-decks.txt"))
   (declare (optimize (speed 3) (safety 0)))
@@ -533,10 +534,9 @@ priority N."))
         (total-time 0))
     (with-open-file (in filename)
       (loop for deck-string = (read-line in nil)
-            for deck-counter from 1
+            for deck-counter of-type fixnum from 1
             while deck-string
             do (progn
-                 (hcl:clean-down t)
                  (setf start-time (get-internal-real-time))
                  (setf solution (solve deck-string))
                  (setf total-time (- (get-internal-real-time) start-time))
