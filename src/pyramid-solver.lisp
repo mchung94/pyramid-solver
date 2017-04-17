@@ -29,7 +29,7 @@
 ;;; Card and Deck definitions
 ;;; Cards are two-letter strings of rank (A23456789TJQK) and suit (cdhs),
 ;;; for example "Ks" or "7c".
-;;; Decks are lists of 52 cards.
+;;; Decks are vectors of 52 cards.
 ;;; Performance isn't really important for these since we'll only use them
 ;;; to precalculate things we want to know before starting the solver.
 
@@ -179,28 +179,6 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
 
 
 
-;;; Action definitions
-;;; Actions are represented by 54-bit values
-;;; Bits 0-51 when set, represent removing the cards at those indexes.
-;;; Bit 52 set = Draw a card from the deck to the waste pile
-;;; Bit 53 set = Recycle the waste pile back onto the deck
-(deftype action ()
-  '(unsigned-byte 54))
-
-(defconstant +action-draw+ (ash 1 52))
-(defconstant +action-recycle+ (ash 1 53))
-
-(defun action (action)
-  "Convert action values into objects that are both human and Lisp readable."
-  (cond ((eql action +action-draw+) "Draw")
-        ((eql action +action-recycle+) "Recycle")
-        (t (loop for i from 0 to 51
-                 for flag = 1 then (ash flag 1)
-                 unless (eql 0 (logand flag action))
-                 collect (svref *cards* i)))))
-
-
-
 ;;; State definitions
 ;;; The "state of the world" of each step while playing Pyramid Solitaire.
 ;;;
@@ -278,7 +256,8 @@ The second child is 1+ the first, but the bottom row indexes have no children.")
     (declare (type deck-index index))))
 
 (defvar *initial-state*
-  (make-state (mask-field (byte 52 0) (lognot 0)) 28 1))
+  (make-state (mask-field (byte 52 0) (lognot 0)) 28 1)
+  "The initial state at the start of the game, no cards are removed yet.")
 
 (defun state-fields (state)
   "Return the fields in STATE (exist-flags, deck-index, waste-index, cycle)."
@@ -356,7 +335,7 @@ NIL doesn't guarantee it's winnable however."
         (push i uncovered-indexes)))))
 
 (defun state-successors (state)
-  "Return (action . state) pairs for each applicable action step from STATE."
+  "Return a list of successor states for each applicable action from STATE."
   (declare (optimize (speed 3) (safety 0))
            (type state state))
   (multiple-value-bind (exist-flags deck-index waste-index cycle)
@@ -367,29 +346,29 @@ NIL doesn't guarantee it's winnable however."
              (type cycle cycle))
     (let ((uncovered-indexes (state-uncovered-table-indexes state))
           (successors '()))
-      (labels ((add (action exist-flags deck-index cycle)
-                 (push (cons action (make-state exist-flags deck-index cycle))
-                       successors))
+      (labels ((add (exist-flags deck-index cycle)
+                 (push (make-state exist-flags deck-index cycle) successors))
                (recycle ()
-                 (add +action-recycle+ exist-flags 28 (1+ cycle)))
+                 (add exist-flags 28 (1+ cycle)))
                (draw ()
-                 (add +action-draw+ exist-flags (1+ deck-index) cycle))
+                 (add exist-flags (1+ deck-index) cycle))
                (remove-king (index)
                  (let ((mask (ash 1 index)))
                    (declare (type exist-flags mask))
-                   (add mask (logandc1 mask exist-flags) deck-index cycle)))
+                   (add (logandc1 mask exist-flags) deck-index cycle)))
                (remove-pair (index1 index2)
                  (let* ((bit1 (ash 1 index1))
                         (bit2 (ash 1 index2))
                         (mask (logior bit1 bit2)))
                    (declare (type exist-flags bit1 bit2 mask))
-                   (add mask (logandc1 mask exist-flags) deck-index cycle))))
+                   (add (logandc1 mask exist-flags) deck-index cycle))))
         (declare (inline add recycle draw remove-king remove-pair))
-        (when (and (deck-empty-p deck-index) (< cycle 3))
-          (recycle))
-        (unless (deck-empty-p deck-index)
-          (push deck-index uncovered-indexes)
-          (draw))
+        (if (deck-empty-p deck-index)
+            (when (/= cycle 3)
+              (recycle))
+          (progn
+            (push deck-index uncovered-indexes)
+            (draw)))
         (unless (waste-empty-p waste-index)
           (push waste-index uncovered-indexes))
         (loop for indexes on uncovered-indexes
@@ -405,18 +384,40 @@ NIL doesn't guarantee it's winnable however."
         
 
 ;;; Search Node definitions
-(defstruct (node (:type vector))
-  "A search node used for A* search."
-  (state *initial-state* :type state)
-  (parent nil :type (or null (simple-vector 4)))
-  (action 0 :type action)
-  (depth 0 :type (integer 0 100)))
+;;; To save on memory there isn't a search node class or struct.  Instead,
+;;; nodes are really just a list where the car is the depth and the cdr is the
+;;; list of states starting from the current state and going backwards to the
+;;; initial state. So:
+;;; node's state = (second node)
+;;; node's parent state = (third node)
+;;; node's action = derive from the diff between parent state and state
+;;; node's depth = (first node)
+;;;
+;;; Actions can be one of 3 things:
+;;; 1) "Draw": Draw a card from the deck to the waste pile
+;;; 2) "Recycle": Recycle the waste pile back into the deck
+;;; 3) A list of cards to remove
+
+(defun action (parent-state state)
+  "Return a Lisp-readable action to get from PARENT-STATE to STATE."
+  (let* ((diff (logxor state parent-state))
+         (exist-flags-diff (mask-field (byte 52 0) diff))
+         (cycle-diff (ldb (byte 2 58) diff)))
+    (cond ((not (eql 0 cycle-diff)) "Recycle")
+          ((not (eql 0 exist-flags-diff))
+           (loop for i from 0 to 51
+                 for flag = 1 then (ash flag 1)
+                 unless (eql 0 (logand flag exist-flags-diff))
+                 collect (svref *cards* i)))
+          (t "Draw"))))
    
 (defun actions (node)
   "Return a list of Lisp-readable actions to go from the initial node to NODE."
-  (when (and node (node-parent node))
-      (append (actions (node-parent node))
-              (list (action (node-action node))))))
+  (loop for states on (reverse (rest node))
+        for parent-state = (first states)
+        for state = (second states)
+        while (and state parent-state)
+        collect (action parent-state state)))
 
 
 
@@ -504,16 +505,16 @@ priority N."))
     (let* ((fringe (make-fringe))
            (seen-states (make-hash-table :test #'eql))
            (state *initial-state*)
-           (node (make-node :state state :action 0 :parent nil :depth 0)))
+           (node (cons 0 (list state))))
       (unless (state-unwinnable-p state)
         (fringe-add fringe node (state-h-cost state)))
       (loop
        (when (fringe-empty-p fringe) (return-from solve nil))
        (setf node (fringe-remove fringe))
-       (setf state (node-state node))
+       (setf state (second node))
        (when (state-goal-p state) (return-from solve (actions node)))
-       (loop with next-depth of-type (integer 0 100) = (1+ (node-depth node))
-             for (action . next-state) in (state-successors state)
+       (loop with next-depth of-type (integer 0 100) = (1+ (first node))
+             for next-state in (state-successors state)
              for seen-depth of-type (or null (integer 0 100)) =
                  (gethash next-state seen-states)
              when (or (not seen-depth) (< next-depth seen-depth))
@@ -521,8 +522,7 @@ priority N."))
              (setf (gethash next-state seen-states) next-depth)
              (unless (state-unwinnable-p next-state)
                (fringe-add fringe
-                           (make-node :state next-state :action action
-                                      :parent node :depth next-depth)
+                           (cons next-depth (cons next-state (rest node)))
                            (+ next-depth
 			      (the (integer 0 100)
 				   (state-h-cost next-state))))))))))

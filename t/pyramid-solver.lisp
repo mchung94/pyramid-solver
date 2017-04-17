@@ -110,22 +110,6 @@ indexes that are neither covering nor covered by each other."
 (test table-unrelated-indexes
   (is (equalp (table-unrelated-indexes) ps::*table-unrelated-indexes*)))
 
-(test action-draw-a-card
-  (is (string= "Draw" (ps::action ps::+action-draw+))))
-
-(test action-recycle
-  (is (string= "Recycle" (ps::action ps::+action-recycle+))))
-
-(test action-one-card
-  (ps::with-deck *deck*
-    (is (equal (list "Kd")
-               (ps::action (ash 1 25))))))
-
-(test action-two-cards
-  (ps::with-deck *deck*
-    (is (equal (list "Qd" "Ah")
-               (ps::action (logior (ash 1 24) (ash 1 26)))))))
-
 (test new-fringe-is-empty
   (let ((fringe (ps::make-fringe)))
     (is-true (ps::fringe-empty-p fringe))))
@@ -263,8 +247,8 @@ uncovered table card indexes match EXPECTED."
 
 (defun actual-successors (starting-state)
   "Gather actual successors with readable actions."
-  (loop for (action . state) in (ps::state-successors starting-state)
-        collect (cons (ps::action action) state)))
+  (loop for state in (ps::state-successors starting-state)
+        collect (cons (ps::action starting-state state) state)))
 
 (defun successors-diffs (deck starting-state expected-data)
   "Compare expected and actual successors and test what's missing in each."
