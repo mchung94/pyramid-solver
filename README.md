@@ -18,11 +18,11 @@ pyramid-solver searches for optimal-length solutions to Pyramid Solitaire accord
 ## Performance
 On an Intel i7-4770k CPU (3.5GHz, 3.9GHZ max) with LispWorks on Windows 10:
 
-| Decks                | Average (milliseconds) | Median (milliseconds)| Total (min:sec) |
-|:-------------------- | ----------------------:| --------------------:| ---------------:|
-| 1500 random decks    |                   1585 |                  391 |           39:37 |  
-| 998 solvable decks   |                    780 |                  438 |           12:59 |
-| 502 unsolvable decks |                   3183 |                   63 |           26:38 |
+| Decks                | Average (milliseconds) | Median (milliseconds)| Maximum (milliseconds) | Total (min:sec) |
+|:-------------------- | ----------------------:| --------------------:| ----------------------:| ---------------:|
+| 1500 random decks    |                   1585 |                  391 |                  83157 |           39:37 |  
+| 998 solvable decks   |                    780 |                  438 |                  11609 |           12:59 |
+| 502 unsolvable decks |                   3183 |                   62 |                  83157 |           26:38 |
 
 The slowest I found was the following deck which took 83 seconds to verify it's unsolvable:
 ```
