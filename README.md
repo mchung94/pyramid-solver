@@ -5,7 +5,8 @@ Quickly find optimal-length solutions to Pyramid Solitaire.
 pyramid-solver searches for optimal-length solutions to Pyramid Solitaire according to Microsoft Solitaire Collection rules.  This program is intended to help people who get stuck while playing and want to find out the solution.  I intend to upload an executable for Windows soon.
 
 ## Rules
-- The game starts with 28 cards face up in a pyramid formation on the table, and the remaining 24 cards on the deck in a stack with only the top card showing.  There's also a waste pile that starts out empty.  Sometimes the table is called the tableau and the deck the stock.
+- Pyramid Solitaire uses a single 52-card deck.
+- The game starts with 28 cards face up in a pyramid formation on the table with each row being 1/2/3/4/5/6/7 cards, and the remaining 24 cards on the deck in a stack with only the top card showing.  There's also a waste pile that starts out empty.  Sometimes the table is called the tableau and the deck the stock.
 - Aces always count as 1, Jacks are 11, Queens are 12, and Kings are 13.
 - The goal is to remove all 28 cards on the table.  There can still be cards in the deck and waste piles.
 - With the cards that are not covered by other cards on the table below it, and the cards on the top of the deck and waste piles, the player can:
@@ -76,7 +77,7 @@ pyramid-solver is developed using LispWorks 7.0 64-bit on Windows but also teste
 The rest of this document contains information for other programmers about how this program works.
 
 ## The Algorithm
-This program uses the A* algorithm with a basic unwinnable state detection procedure.  A lot of work went into lower-level optimizations, which I will explain below.
+This program uses the [A* algorithm](https://en.wikipedia.org/wiki/A*_search_algorithm) with a basic unwinnable state detection procedure.  A lot of work went into lower-level optimizations, which I will explain below.
 
 ### Heuristic Function
 For each step while playing the game, the heuristic function calculates an estimate of how many more steps are needed to win the game.  The following calculation is [admissible](https://en.wikipedia.org/wiki/Admissible_heuristic) and [consistent](https://en.wikipedia.org/wiki/Consistent_heuristic):
@@ -102,10 +103,10 @@ for each card on the table that isn't a King:
 3. Instead of detecting and avoiding repeated states, detect and avoid "similar" states and look for non-optimal solutions.  For example instead of checking if the table/deck/waste/cycle were all exactly the same, what if pyramid-solver only checked if the table cards and the top cards of the deck and waste pile were all the same, even though the cards under the top were different?  I had some impressive results for some decks, but it can fail to find a solution even though one exists.
 4. Iterative Deepening Depth First Search - this conserves memory compared to Breadth First Search but I was more concerned with speed.  However, I did use Depth-Limited search in a solution verification program to check pyramid-solver, to verify that no shorter solution exists.
 5. I spent way too much time evaluating possible representations for cards (as symbols, strings, class instances, structs, integers, single characters, conses holding rank and suit), but in the end, it didn't matter because of precalculation.
-6. I was inspired by the article [Solving Every Sudoku Puzzle](http://norvig.com/sudoku.html) to try constraint propagation for unwinnable state detection.  I tried using a basic strategy of "if there is only one card available to remove a table card, remove that card as a possibility for its peers of the same rank".  But the additional processing slowed it down overall, so I stopped investigating it because I currently don't have a lot of good ideas on additional constraint strategies to propagate.
+6. I was inspired by the essay [Solving Every Sudoku Puzzle](http://norvig.com/sudoku.html) to try constraint propagation for unwinnable state detection.  I tried using a basic strategy of "if there is only one card available to remove a table card, remove that card as a possibility for its peers of the same rank".  But the additional processing slowed it down overall, so I stopped investigating it because I currently don't have a lot of good ideas on additional constraint strategies to propagate.
 
 ## Fixing Performance Issues
-Initially the A* search was quite slow.  A simple Breadth-First search took 55 hours to run through the 1500 random card decks.  My first implementation took 41 hours to do the same, but my current version does it in 39 minutes.  I took the following steps to reach acceptable performance without changing the high-level algorithms.
+Initially the A* search was quite slow.  A simple Breadth-First search took 55 hours to run through the 1500 random card decks.  My first A* implementation took 41 hours to do the same, but my current version does it in 39 minutes.  I took the following steps to reach acceptable performance without changing the high-level algorithms.
 
 ### Performance Issue 1: Repeated State Avoidance
 To avoid processing repeated states, pyramid-solver needs to keep track of states it has visited.  The process of finding out if it has already seen a state, using a hashtable, was about 38% of the total run time according to the profiler.
@@ -148,17 +149,29 @@ Even better, once I precalculated everything, I found I could store a lot less i
   - Bits 0-27 are the 28 table cards
   - Bits 28-51 are the 24 deck/waste pile cards
 - Bits 52-57: A 6-bit integer from 28 to 52 indicating the deck-index
-  - The card at the deck-index is the top of the deck
+  - The card at the deck-index is the top of the deck, waste-index can be derived to point to the top of the waste pile
   - The cards above the deck-index are the rest of the deck
-  - The cards below the deck-index are the waste pile, and the one that's closest to the deck-index is the top of the waste pile.
   - If the deck-index is 52 the deck is empty
+  - The cards below the deck-index are the waste pile
+  - The waste card closest to the deck-index is the top of the waste pile
   - If the waste-index is 27 the waste pile is empty.
 - Bits 58-59: A 2-bit integer from 1 to 3 indicating which cycle through the deck we are currently in
 
 Now, comparing states for equality is just comparing two fixnums for equality using EQL.  This is much faster and also lowers memory usage compared to the original state representation.
 
 #### Unwinnable States and Uncovered Table Cards
-With these card existence flag bits, there's a really fast way to do unwinnable state detection and finding uncovered table cards.  I can precalculate bit masks and perform bitwise logic to say for example, if the 12th table card exists but the 34th and 45th don't, then it's unwinnable - that's now done with a single array index lookup, a logical bitwise AND, a left shift and a fixnum comparison.  Or if the 12th table card exists but the 17th and 18th don't, then the 12th table card is uncovered - that would be the exact same series of operations but with a different bit mask.
+With these card existence flag bits, there's a really fast way to do unwinnable state detection and finding uncovered table cards.  I can precalculate bit masks and perform bitwise logic to say for example, if the card at index 12 exists but the ones at indexes 34 and 45 don't, then it's unwinnable - that's now done with a single array index lookup, a logical bitwise AND, a left shift and a fixnum comparison.
+```common-lisp
+;;; index 0 is on the right and 51 is on the left
+;;; precalculated 52-bit mask for cards at indexes 12, 34, and 45
+;;; for this deck, card 34 and 45 are the only ones you can use to remove card 12
+;;; 0000001000000000010000000000000000000001000000000000
+;;; 52-bit card existence flags
+;;; 1111110101111110000000000000000000000001111111111111
+(eql (ash 1 12) (logand mask exist-flags))
+;;; this is equivalent to asking if card 12 has not been removed yet, but 34 and 45 have been removed
+```
+Or if the table card at index 12 exists but the ones at indexes 17 and 18 don't, then the table card at index 12 is uncovered - that would be the exact same series of operations but with a different bit mask.
 
 ### Performance Issue 2: Priority Queue
 After fixing the first performance issue, the profiler showed that almost 60% of the run time was spent inserting and removing search nodes from a general purpose [priority queue](https://en.wikipedia.org/wiki/Priority_queue).  Wikipedia mentioned the [Bucket Queue](https://en.wikipedia.org/wiki/Bucket_queue) which makes sense for solving Pyramid Solitaire, since we only need to insert nodes, remove the minimum priority node, and check if the queue is empty.
@@ -206,7 +219,7 @@ Search Nodes were implemented like this:
 (defun make-node (&key state parent action depth)
   (make-instance 'node :state state :parent parent :action action :depth depth))
 ```
-I was surprised by this but after fixing the first two performance issues, the profiler showed that 24% of the run time was spent in make-node.  With the long-running unsolvable deck described in the Performance section, 53 million nodes were created in 83 seconds total run time, so 24% of 83 seconds is about 20 seconds of creating nodes, or around 2,650,000 could be created per second.  I was thinking the function call and keyword argument overhead might be part of this as well as something going on in make-instance but I didn't investigate because it's easy to switch to defstruct and see how that affects performance.
+I was surprised by this but after fixing the first two performance issues, the profiler showed that 24% of the run time was spent in make-node.  With the long-running unsolvable deck described in the Performance section, 53 million nodes were created in 83 seconds total run time, so 24% of 83 seconds is about 20 seconds of creating nodes, or around 2,650,000 could be created per second.  I didn't investigate much because it's easy to switch to defstruct and see how that affects performance.
 
 Changing node to an defstruct helped a lot in terms of speed, and I changed it to an unnamed struct to try to lower memory usage:
 ```common-lisp
