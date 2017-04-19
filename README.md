@@ -73,10 +73,10 @@ pyramid-solver is developed using LispWorks 7.0 64-bit on Windows but also teste
 
 
 # Programming Notes
-The rest of this document contains information to explain to other developers how this program works.
+The rest of this document contains information for other programmers about how this program works.
 
 ## The Algorithm
-This program uses the A* algorithm with a basic unwinnable state detection procedure.  So at a high level it's not very sophisticated.  Most of the work is in lower-level optimizations, which I will explain below.
+This program uses the A* algorithm with a basic unwinnable state detection procedure.  A lot of work went into lower-level optimizations, which I will explain below.
 
 ### Heuristic Function
 For each step while playing the game, the heuristic function calculates an estimate of how many more steps are needed to win the game.  The following calculation is [admissible](https://en.wikipedia.org/wiki/Admissible_heuristic) and [consistent](https://en.wikipedia.org/wiki/Consistent_heuristic):
@@ -88,7 +88,7 @@ For each step while playing the game, the heuristic function calculates an estim
 pyramid-solver keeps a hash table of successor states it has seen during expansion and skips the same state if it sees it again, unless it has reached the same state with a shorter number of steps.  Basically it's trying to filter out some non-optimal nodes before they are even added to the fringe.
 
 ### Unwinnable State Detection
-The actual code is more clever with some precalculation, but the overall process to find out if a state is unwinnable is:
+The actual code is faster with some precalculation, but the overall process to find out if a state is unwinnable is:
 ```
 for each card on the table that isn't a King:
     find all the cards with the rank that adds up to 13 as a potential match
@@ -101,7 +101,7 @@ for each card on the table that isn't a King:
 2. Depth First Search with prioritized moves: I was thinking along the lines of assigning ranks to potential moves, like removing two table cards is better than removing one table card plus a card on the deck, or removing a King.  Sometimes this helps Depth First Search find non-optimal solutions really fast.  But this still had worst-case performance that was very slow.
 3. Instead of detecting and avoiding repeated states, detect and avoid "similar" states and look for non-optimal solutions.  For example instead of checking if the table/deck/waste/cycle were all exactly the same, what if pyramid-solver only checked if the table cards and the top cards of the deck and waste pile were all the same, even though the cards under the top were different?  I had some impressive results for some decks, but it can fail to find a solution even though one exists.
 4. Iterative Deepening Depth First Search - this conserves memory compared to Breadth First Search but I was more concerned with speed.  However, I did use Depth-Limited search in a solution verification program to check pyramid-solver, to verify that no shorter solution exists.
-5. I spent way too much time evaluation possible representations for cards (as symbols, strings, class instances, structs, integers, single characters, conses holding rank and suit), but in the end, it didn't matter because of precalculation.
+5. I spent way too much time evaluating possible representations for cards (as symbols, strings, class instances, structs, integers, single characters, conses holding rank and suit), but in the end, it didn't matter because of precalculation.
 6. I was inspired by the article [Solving Every Sudoku Puzzle](http://norvig.com/sudoku.html) to try constraint propagation for unwinnable state detection.  I tried using a basic strategy of "if there is only one card available to remove a table card, remove that card as a possibility for its peers of the same rank".  But the additional processing slowed it down overall, so I stopped investigating it because I currently don't have a lot of good ideas on additional constraint strategies to propagate.
 
 ## Fixing Performance Issues
@@ -218,7 +218,7 @@ Changing node to an defstruct helped a lot in terms of speed, and I changed it t
   (depth 0 :type (integer 0 100)))
 ```
 
-**But I got significant memory savings by getting rid of node structures entirely.**  Now nodes are just a list of state fixnum values but with the first element being the depth of the node (as an optimization so pyramid-solver doesn't spend time calculating the length of the list).  To create a new succesor state node given a parent node, you just cons your new state onto the cdr of the parent node (skipping over where the parent node holds its depth), then cons the new depth on top of that.  The parent node is unaffected by this.
+**But I got significant memory savings by getting rid of node structures entirely.**  Now nodes are just a list of states starting with the current state and going back to the initial state, but with the first element being the depth of the node (as an optimization so pyramid-solver doesn't spend time calculating the length of the list).  To create a new succesor state node given a parent node, you just cons your new state onto the cdr of the parent node (skipping over where the parent node holds its depth), then cons the new depth on top of that.  The parent node is unaffected by this.
 
 On any given node:
 - node's depth = (first node)
