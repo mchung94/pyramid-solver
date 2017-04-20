@@ -2,7 +2,7 @@
 Quickly find optimal-length solutions to Pyramid Solitaire.
 
 # Overview
-pyramid-solver searches for optimal-length solutions to Pyramid Solitaire according to Microsoft Solitaire Collection rules.  This program is intended to help people who get stuck while playing and want to find out the solution.  I intend to upload an executable for Windows soon.
+pyramid-solver searches for optimal-length solutions to Pyramid Solitaire according to Microsoft Solitaire Collection rules.  This program is intended to help people who get stuck while playing and want to find out the solution.  There is now a 64-bit command-line program for Windows available for download.
 
 ## Rules
 - Pyramid Solitaire uses a single 52-card deck.
@@ -39,6 +39,14 @@ The slowest I found was the following deck which took 83 seconds to verify it's 
 8s is at the top of the deck and Jh is at the bottom.
 
 # Usage
+
+## Command Line program
+1. Create a plain text file (in Notepad for example) containing the cards for the Pyramid Solitaire deck.  See the Pyramid above as an example.  You don't have to add spaces or newlines to make it look nice - the program will ignore any letter that isn't a card rank (A23456789TJQK) or suit (cdhs).
+2. Open a command prompt.
+3. Run "pyramid-solver.exe filename" where filename is the name of the text file containing the cards.
+4. pyramid-solver.exe will detect problems such as missing cards, too many cards, or malformed cards.  After running it will either say no solution exists, or say how many steps are in the solution, followed by the steps required to solve the deck.
+
+## Source Code
 - To load the system:
   - (asdf:load-system :pyramid-solver)
 - To run the tests:
@@ -82,7 +90,7 @@ This program uses the [A* algorithm](https://en.wikipedia.org/wiki/A*_search_alg
 ### Heuristic Function
 For each step while playing the game, the heuristic function calculates an estimate of how many more steps are needed to win the game.  The following calculation is [admissible](https://en.wikipedia.org/wiki/Admissible_heuristic) and [consistent](https://en.wikipedia.org/wiki/Consistent_heuristic):
 1. Count how many cards of each rank are on the table.
-2. Find the higher count of every matching rank pair.  For example, if there are two Sixes and three Sevens on the table, the higher count is three, so it would take a minumum of three steps to remove all the Sixes and all the Sevens.  Find the higher count for A/Q, 2/J, 3/T, 4/9, 5/8, and 6/7.
+2. Find the higher count of every matching rank pair.  For example, if there are two Sixes and three Sevens on the table, the higher count is three, so it would take a minimum of three steps to remove all the Sixes and all the Sevens.  Find the higher count for A/Q, 2/J, 3/T, 4/9, 5/8, and 6/7.
 3. Calculate the sum of the number of kings plus each of the six counts in step 2.  This is the estimated number of steps to win the game.
 
 ### Repeated State Avoidance
@@ -109,7 +117,7 @@ for each card on the table that isn't a King:
 Initially the A* search was quite slow.  A simple Breadth-First search took 55 hours to run through the 1500 random card decks.  My first A* implementation took 41 hours to do the same, but my current version does it in 39 minutes.  I took the following steps to reach acceptable performance without changing the high-level algorithms.
 
 ### Performance Issue 1: Repeated State Avoidance
-To avoid processing repeated states, pyramid-solver needs to keep track of states it has visited.  The process of finding out if it has already seen a state, using a hashtable, was about 38% of the total run time according to the profiler.
+To avoid processing repeated states, pyramid-solver needs to keep track of states it has visited.  The process of finding out if it has already seen a state, using a hash table, was about 38% of the total run time according to the profiler.
 
 #### Initial State Representation
 Cards are represented as two-letter strings.  Each state was an object that consisted of:
@@ -231,7 +239,7 @@ Changing node to an defstruct helped a lot in terms of speed, and I changed it t
   (depth 0 :type (integer 0 100)))
 ```
 
-**But I got significant memory savings by getting rid of node structures entirely.**  Now nodes are just a list of states starting with the current state and going back to the initial state, but with the first element being the depth of the node (as an optimization so pyramid-solver doesn't spend time calculating the length of the list).  To create a new succesor state node given a parent node, you just cons your new state onto the cdr of the parent node (skipping over where the parent node holds its depth), then cons the new depth on top of that.  The parent node is unaffected by this.
+**But I got significant memory savings by getting rid of node structures entirely.**  Now nodes are just a list of states starting with the current state and going back to the initial state, but with the first element being the depth of the node (as an optimization so pyramid-solver doesn't spend time calculating the length of the list).  To create a new successor state node given a parent node, you just cons your new state onto the cdr of the parent node (skipping over where the parent node holds its depth), then cons the new depth on top of that.  The parent node is unaffected by this.
 
 On any given node:
 - node's depth = (first node)
