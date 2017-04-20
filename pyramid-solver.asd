@@ -6,5 +6,6 @@
                 :serial t
                 :components
                 ((:file "packages")
-                 (:file "pyramid-solver"))))
+                 (:file "pyramid-solver")
+                 (:file "command-line"))))
   :in-order-to ((test-op (test-op pyramid-solver-tests))))

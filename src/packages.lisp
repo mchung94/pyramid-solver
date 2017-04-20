@@ -2,4 +2,14 @@
   (:nicknames #:ps)
   (:use #:cl)
   (:export
-   #:solve))
+   #:solve
+   #:human-readable-action
+   #:find-malformed-card
+   #:missing-cards
+   #:num-cards))
+
+(defpackage #:command-line
+  (:use #:cl)
+  (:export
+   #:run
+   #:main))

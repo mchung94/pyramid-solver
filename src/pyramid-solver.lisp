@@ -410,7 +410,18 @@ NIL doesn't guarantee it's winnable however."
                  unless (eql 0 (logand flag exist-flags-diff))
                  collect (svref *cards* i)))
           (t "Draw"))))
-   
+
+(defun human-readable-action (action)
+  "Return a human-readable string for the Lisp-readable ACTION."
+  (cond ((equal action "Recycle")
+         "Recycle the waste pile.")
+        ((equal action "Draw")
+         "Draw a card.")
+        ((= (length action) 1)
+         (format nil "Remove ~A." (elt action 0)))
+        (t
+         (format nil "Remove ~A and ~A." (elt action 0) (elt action 1)))))
+
 (defun actions (node)
   "Return a list of Lisp-readable actions to go from the initial node to NODE."
   (loop for states on (reverse (rest node))
@@ -485,18 +496,43 @@ priority N."))
 
 
 
+(defun collect-card-chars (deck-string)
+  "Return a list of card rank and suit characters in DECK-STRING."
+  (with-input-from-string (in deck-string)
+    (loop for ch = (read-char in nil)
+          while ch
+          when (or (find (char-downcase ch) "cdhs")
+                   (find (char-upcase ch) "A23456789TJQK"))
+          collect it)))
+
 (defun deck-string->card-list (deck-string)
   "Convert a string containing two-letter cards into a list of cards."
-  (when deck-string
-    (let ((card-chars (with-input-from-string (in deck-string)
-                        (loop for ch = (read-char in nil)
-                              while ch
-                              when (or (find (char-downcase ch) "cdhs")
-                                       (find (char-upcase ch) "A23456789TJQK"))
-                              collect it))))
-      (loop for (rank suit) on card-chars by #'cddr
-	 collect (format nil "~A~A" rank suit)))))
-  
+  (let ((card-chars (collect-card-chars deck-string)))
+    (loop for (rank suit) on card-chars by #'cddr
+          collect (format nil "~A~A" rank suit))))
+
+(defun find-malformed-card (deck-string)
+  "Return the first card that doesn't look like a card."
+  (dolist (card (deck-string->card-list deck-string))
+    (unless (and (= 2 (length card))
+                 (and (find (aref card 0) "A23456789TJQK")
+                      (find (aref card 1) "cdhs")))
+      (return-from find-malformed-card card))))
+
+(defun missing-cards (deck-string)
+  "Return the cards from the 52-card deck that are missing from DECK-STRING."
+  (let ((card-list (deck-string->card-list deck-string)))
+    (apply #'append
+           (loop for suit across "cdhs"
+                 collect (loop for rank across "A23456789TJQK"
+                               for card = (format nil "~A~A" rank suit)
+                               unless (find card card-list :test #'equal)
+                               collect card)))))
+
+(defun num-cards (deck-string)
+  "Return the number of cards in DECK-STRING."
+  (length (deck-string->card-list deck-string)))
+
 ;;; A* solver for Pyramid Solitaire
 (defun solve (deck-string)
   "Given a 52 card deck, set up Pyramid Solitaire and return a solution or NIL."

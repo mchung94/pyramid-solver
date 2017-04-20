@@ -305,3 +305,32 @@ uncovered table card indexes match EXPECTED."
 
 (test solve-minimal
   (is (= 15 (length (solve *shortest-solution-deck*)))))
+
+(test find-malformed-card
+  (is (not (find-malformed-card *shortest-solution-deck*)))
+  (is (find-malformed-card "Ks 7c 2d Ah 3a 3c"))
+  (is (find-malformed-card "Ac 3h 5c 6d 8s 9c Td Jh Qs 4g 4s"))
+  (is (find-malformed-card "Ac 3h 5c 6d 8s 9c Td Jh Qs 4g")))
+
+(test missing-cards
+  (let ((len (length *shortest-solution-deck*)))
+    (is (null (missing-cards *shortest-solution-deck*)))
+    (is (equal '("Ks")
+               (missing-cards (subseq *shortest-solution-deck* 0 (- len 3)))))
+    (is (equal '("Qs" "Ks")
+               (missing-cards (subseq *shortest-solution-deck* 0 (- len 6)))))
+    (is (null (set-difference (map 'list #'identity *deck*)
+                              (missing-cards "")
+                              :test #'string=)))))
+
+(test num-cards
+  (is (= 52 (num-cards *shortest-solution-deck*)))
+  (is (= 2 (num-cards "Ks 4c")))
+  (is (= 2 (num-cards "4g 4s")))
+  (is (zerop (num-cards ""))))
+
+(test human-readable-action
+  (is (string= "Recycle the waste pile." (human-readable-action "Recycle")))
+  (is (string= "Draw a card." (human-readable-action "Draw")))
+  (is (string= "Remove Kd." (human-readable-action '("Kd"))))
+  (is (string= "Remove 6d and 7s." (human-readable-action '("6d" "7s")))))
