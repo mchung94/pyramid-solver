@@ -229,7 +229,7 @@ Search Nodes were implemented like this:
 ```
 I was surprised by this but after fixing the first two performance issues, the profiler showed that 24% of the run time was spent in make-node.  With the long-running unsolvable deck described in the Performance section, 53 million nodes were created in 83 seconds total run time, so 24% of 83 seconds is about 20 seconds of creating nodes, or around 2,650,000 could be created per second.  I didn't investigate much because it's easy to switch to defstruct and see how that affects performance.
 
-Changing node to an defstruct helped a lot in terms of speed, and I changed it to an unnamed struct to try to lower memory usage:
+Changing node to a defstruct helped a lot in terms of speed, and I changed it to an unnamed struct to try to lower memory usage:
 ```common-lisp
 (defstruct (node (:type vector))
   "A search node used for A* search."
