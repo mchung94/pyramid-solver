@@ -549,7 +549,8 @@ priority N."))
        (setf node (fringe-remove fringe))
        (setf state (second node))
        (when (state-goal-p state) (return-from solve (actions node)))
-       (loop with next-depth of-type (integer 0 100) = (1+ (first node))
+       (loop with next-depth of-type (integer 0 100) = 
+	         (1+ (the (integer 0 99) (first node)))
              for next-state in (state-successors state)
              for seen-depth of-type (or null (integer 0 100)) =
                  (gethash next-state seen-states)
