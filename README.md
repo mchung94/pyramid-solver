@@ -139,7 +139,7 @@ But the second insight I had was that if you're playing Pyramid Solitaire with a
 (defun card-rank (deck-index)
   (schar "T243Q895JT74TA985276729Q355A8J694KJ426KQ33K7TA6QK8AJ" deck-index))
 ```
-So the first card in the deck is a Ten, the second is a 2, etc.
+Here, the first card in the deck is a Ten, which is also the top of the pyramid.   The second card is a 2, and so on.  So the deck and indexes into it can be the fundamental objects in the game, not the cards themselves.
 
 With these two ideas, I now had a bunch of ideas on things I can precalculate:
 - What is the Nth card in the deck?
