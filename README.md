@@ -17,7 +17,7 @@ pyramid-solver searches for optimal-length solutions to Pyramid Solitaire accord
 - The player can cycle through the deck cards 3 times, recycling twice.
 
 ## Performance
-On an Intel i7-4770k CPU (3.5GHz, 3.9GHZ max) with LispWorks on Windows 10:
+On an Intel i7-4770k CPU (3.5GHz, 3.9GHz max) with LispWorks on Windows 10:
 
 | Decks                | Average (milliseconds) | Median (milliseconds)| Maximum (milliseconds) | Total (min:sec) |
 |:-------------------- | ----------------------:| --------------------:| ----------------------:| ---------------:|
