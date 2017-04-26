@@ -227,7 +227,7 @@ Search Nodes were implemented like this:
 (defun make-node (&key state parent action depth)
   (make-instance 'node :state state :parent parent :action action :depth depth))
 ```
-I was surprised by this but after fixing the first two performance issues, the profiler showed that 24% of the run time was spent in make-node.  With the long-running unsolvable deck described in the Performance section, 53 million nodes were created in 83 seconds total run time, so 24% of 83 seconds is about 20 seconds of creating nodes, or around 2,650,000 could be created per second.  I didn't investigate much because it's easy to switch to defstruct and see how that affects performance.
+I was surprised by this but after fixing the first two performance issues, the profiler showed that 24% of the run time was spent in make-node.  With the long-running unsolvable deck described in the Performance section, 53 million nodes were created in 118 seconds total run time, so 24% of 118 seconds is 28.32 seconds of creating nodes, or around 1,870,000 could be created per second.  I didn't investigate much because it's easy to switch to defstruct and see how that affects performance.
 
 Changing node to a defstruct helped a lot in terms of speed, and I changed it to an unnamed struct to try to lower memory usage:
 ```common-lisp
