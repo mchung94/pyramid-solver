@@ -260,7 +260,7 @@ uncovered table card indexes match EXPECTED."
       ;; check what's in actual but not in expected
       (is (null (set-difference actual expected :test #'equal))))))
 
-(test state-successors-part1
+(test state-successors-draw
   (successors-diffs *deck* *full-state*
                     '(; case 4: can't recycle because the deck isn't empty
                       ("Draw" 29 1) ; case 1
@@ -278,7 +278,7 @@ uncovered table card indexes match EXPECTED."
                       (("Kd") 52 1) ; case 6
                       (("Ks") 52 1)))) ; case 8
        
-(test state-successors-cycle3
+(test state-successors-end-of-cycle3
   (successors-diffs *deck* (make-state (1- (expt 2 52)) 52 3)
                     '( ; case 5: can't recycle because it's cycle 3
                       (("Jd" "2h") 52 3) ; case 9
@@ -286,7 +286,7 @@ uncovered table card indexes match EXPECTED."
                       (("Kd") 52 3) ; case 6
                       (("Ks") 52 3)))) ; case 8
 
-(test state-successors-recycle
+(test state-successors-remove-king-from-deck
   (successors-diffs *deck* (make-state (1- (expt 2 52)) 51 1)
                     '(("Draw" 52 1) ; case 1
                       (("Jd" "2h") 51 1) ; case 9
