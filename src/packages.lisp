@@ -2,11 +2,10 @@
   (:nicknames #:ps)
   (:use #:cl)
   (:export
-   #:solve
+   #:string->deck
+   #:deckp
    #:human-readable-action
-   #:find-malformed-card
-   #:missing-cards
-   #:num-cards))
+   #:solve))
 
 (defpackage #:command-line
   (:use #:cl)
