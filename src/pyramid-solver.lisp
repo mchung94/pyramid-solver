@@ -423,10 +423,12 @@ covered by it."
                            (svref *unrelated-card-masks* i))
                    masks))))))
 
-(deftype state-cache ()
+(defstruct state-cache
   "SUCCESSOR-MASKS, H-COST, and UNWINNABLE-MASKS for a given PYRAMID-FLAGS."
-  '(simple-vector 3))
-
+  successor-masks
+  h-cost
+  unwinnable-masks)
+  
 (defun make-state-caches (deck)
   "Precalculate all the data we need to speed up processing for each state.
 The result is a hash table indexed by one of 1430 PYRAMID-FLAGS, and the hash
@@ -444,9 +446,12 @@ card in the pyramid that can't be removed)."
         for uncovered-indexes in *all-uncovered-indexes*
         for all-indexes in *all-pyramid-indexes*
         do (setf (gethash pyramid-flags state-caches)
-                 (vector
+                 (make-state-cache
+                  :successor-masks
                   (successor-masks uncovered-indexes king-masks card-masks)
+                  :h-cost
                   (h-cost all-indexes card-values)
+                  :unwinnable-masks
                   (unwinnable-masks all-indexes card-values card-bucket-masks)))
         finally (return state-caches)))
 
@@ -476,7 +481,7 @@ Bits 58-59: CYCLE - the current cycle through the stock/waste cards."
   "Return an estimate of how many steps to clear all 28 pyramid cards."
   (declare (optimize speed (safety 0))
            (type state-cache state-cache))
-  (svref state-cache 1))
+  (state-cache-h-cost state-cache))
 
 (declaim (inline state-unwinnable-p))
 (defun state-unwinnable-p (state state-cache)
@@ -486,7 +491,7 @@ pyramid that can't be removed."
   (declare (optimize speed (safety 0))
            (type state state)
            (type state-cache state-cache))
-  (dolist (mask (svref state-cache 2))
+  (dolist (mask (state-cache-unwinnable-masks state-cache))
     (declare (type deck-flags mask))
     (when (zerop (logand mask state))
       (return-from state-unwinnable-p t))))
@@ -552,7 +557,8 @@ the STOCK-INDEX.  If the waste pile is empty, this function will return
          (stock-index (state-stock-index state))
          (cycle (state-cycle state))
          (waste-index (state-waste-index deck-flags stock-index))
-         (successor-masks (the successor-masks (svref state-cache 0)))
+         (successor-masks (the successor-masks
+                               (state-cache-successor-masks state-cache)))
          (successors ()))
     (if (stock-empty-p stock-index)
         (when (/= cycle 3)
