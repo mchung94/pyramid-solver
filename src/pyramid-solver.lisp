@@ -1,60 +1,39 @@
 (in-package #:pyramid-solver)
 
+;;; Card and Deck related definitions
+;;; These functions don't have to be fast because the first thing we do is
+;;; use them to precalculate other stuff that will be faster to use.
 
-
-;;; Card related definitions
-;;; These card functions don't have to be fast because the first thing we do
-;;; is use them to precalculate other stuff that will be faster to use.
-
-(deftype rank ()
-  "Valid card rank characters."
-  '(member #\A #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\T #\J #\Q #\K))
-
-(deftype suit ()
-  "Valid card suit characters."
-  '(member #\c #\d #\h #\s))
-
-(defvar *rank-characters* "A23456789TJQK"
-  "All valid rank characters.  Ranks must be uppercase.")
-
-(defvar *suit-characters* "cdhs"
-  "All valid suit characters.  Suits must be lowercase.")
+(defvar *rank-characters* "A23456789TJQK" "All valid rank characters.")
+(defvar *suit-characters* "cdhs" "All valid suit characters.")
 
 (defun cardp (card)
-  "Return T if CARD is a two-letter string of a rank followed by a suit."
+  "Return a true value if CARD is a string containing rank followed by suit."
   (and (stringp card)
        (= 2 (length card))
-       (typep (schar card 0) 'rank)
-       (typep (schar card 1) 'suit)))
+       (find (schar card 0) *rank-characters*)
+       (find (schar card 1) *suit-characters*)))
 
 (deftype card ()
   "Cards are two-letter strings containing rank followed by suit."
   '(and (simple-base-string 2) (satisfies cardp)))
 
 (defun make-card (rank suit)
-  "Make a card from RANK and SUIT characters."
+  "Create a card from RANK and SUIT.  Don't signal an error here on bad input.
+More descriptive error reporting is possible using the deck as a whole."
   (format nil "~A~A" rank suit))
 
 (defun rank (card)
-  "Return CARD's rank as a character."
+  "Return CARD's character rank."
   (schar card 0))
 
-(defun kingp (card)
-  "Return T if CARD is a King."
-  (char= (rank card) #\K))
-
 (defun value (card)
-  "Return CARD's numeric value. A = always 1, J = 11, Q = 12, K = 13."
+  "Return CARD's numeric value.  A = always 1, J = 11, Q = 12, K = 13."
   (1+ (position (rank card) *rank-characters*)))
-
-(defun matchp (card1 card2)
-  "Return T if CARD1 and CARD2 add up to 13 (a match in Pyramid Solitaire)."
-  (= 13 (+ (value card1) (value card2))))
 
 (defun collect-card-chars (string)
   "Return a list of all card rank and suit characters in STRING.
-All ranks will change to upper case and all suits will change to lower case.
-This is used to help convert a string containing cards into a list of cards."
+Ranks will become uppercase and suits will become lowercase."
   (loop for ch across string
         when (or (find (char-downcase ch) *suit-characters*)
                  (find (char-upcase ch) *rank-characters*))
@@ -66,9 +45,6 @@ This is used to help convert a string containing cards into a list of cards."
                     collect (make-card rank suit)))
   "All the cards in a 52-card deck.")
 
-
-
-;;; Deck related definitions
 (defun deckp (deck)
   "Return T if DECK is a list containing all 52 cards in a standard deck.
 The four additional values returned are: the number of cards, the missing
@@ -94,41 +70,17 @@ it will return NIL and all 52 cards as missing."
   (loop for (rank suit) on (collect-card-chars string) by #'cddr
         collect (make-card rank suit)))
 
+
+
+;;; Deck bit flags and index related definitions
 (deftype deck-flags ()
-  "Bit flags for the existence of each card in the 52-card deck."
+  "Bit flags for the existence of each card in a 52-card deck."
   '(unsigned-byte 52))
 
 (deftype deck-index ()
   "An index into the 52-card deck."
   '(integer 0 51))
 
-(declaim (inline mask))
-(defun mask (deck-index)
-  "Given a DECK-INDEX, return a DECK-FLAGS mask with that bit set to 1.
-This is used to single out cards to check if they remain in the deck or not,
-or to build a mask to remove them."
-  (declare (type deck-index deck-index))
-  (the deck-flags (ash 1 deck-index)))
-
-(declaim (inline invert))
-(defun invert (deck-flags)
-  "Given DECK-FLAGS, do a bit-wise NOT on each bit but keep the result positive.
-This results in a mask used for removing cards from the deck."
-  (declare (type deck-flags deck-flags))
-  (the deck-flags (mask-field (byte 52 0) (lognot deck-flags))))
-
-(declaim (inline card-exists-p))
-(defun card-exists-p (index flags)
-  "Return T if the card at INDEX has not been removed from FLAGS.
-This is the same as LOGBITP but faster with optimizations on LispWorks, unless
-there's something I can do that I don't know of yet."
-  (declare (type deck-flags flags)
-           (type deck-index index))
-  (not (zerop (logand (mask index) flags))))
-
-
-
-;;; Pyramid, stock pile, and waste pile related definitions
 (deftype pyramid-flags ()
   "Bit flags for the first 28 cards in the deck arranged in a pyramid.
 This is bits 0-27 of a DECK-FLAGS value.
@@ -156,6 +108,12 @@ as well."
 (defconstant +empty-stock-index+ 52
   "If the stock index is 52 it means the stock pile is empty.")
 
+(declaim (inline stock-empty-p))
+(defun stock-empty-p (stock-index)
+  "Return T if the stock pile is empty according to the STOCK-INDEX."
+  (declare (type stock-index stock-index)) 
+  (eql stock-index +empty-stock-index+))
+
 (deftype waste-index ()
   "A deck index into the 24 stock/waste cards after the 28 pyramid cards.
 The card at the waste index is the top card in the waste pile.  Cards with
@@ -165,17 +123,34 @@ lower index in the deck are in the waste pile as well."
 (defconstant +empty-waste-index+ 27
   "If the waste index is 27 it means the waste pile is empty.")
 
-(declaim (inline stock-empty-p))
-(defun stock-empty-p (stock-index)
-  "Return T if the stock pile is empty according to the STOCK-INDEX."
-  (declare (type stock-index stock-index)) 
-  (eql stock-index +empty-stock-index+))
-
 (declaim (inline waste-empty-p))
 (defun waste-empty-p (waste-index)
   "Return T if the waste pile is empty according to the WASTE-INDEX."
   (declare (type waste-index waste-index))
   (eql waste-index +empty-waste-index+))
+
+
+
+;;; Functions and precalculated data that apply to any deck of cards
+(declaim (inline mask))
+(defun mask (deck-index)
+  "Given a DECK-INDEX, return a DECK-FLAGS mask with that bit set to 1."
+  (declare (deck-index deck-index))
+  (the deck-flags (ash 1 deck-index)))
+
+(declaim (inline removal-mask))
+(defun removal-mask (deck-index)
+  "Return a mask that removes the card at DECK-INDEX from a DECK-FLAGS value."
+  (declare (deck-index deck-index))
+  (the deck-flags (mask-field (byte 52 0) (lognot (mask deck-index)))))
+
+(declaim (inline card-exists-p))
+(defun card-exists-p (index flags)
+  "Return T if the card at INDEX still exists according to FLAGS.
+This is the same as LOGBITP but faster with optimizations on LispWorks."
+  (declare (deck-index index)
+           (deck-flags flags))
+  (not (zerop (logand (mask index) flags))))
 
 (defvar *pyramid-cover-masks*
   #(#b1111111111111111111111111110
@@ -214,10 +189,10 @@ aren't covered by any other cards.")
 (declaim (inline card-uncovered-p))
 (defun card-uncovered-p (pyramid-index pyramid-flags)
   "Return T if the card at PYRAMID-INDEX has no cards covering it from below.
-An uncovered card is available to be removed if there's a matching card to
-remove it with.  Covered cards can't be removed unless they're uncovered first."
-  (declare (type pyramid-flags pyramid-flags)
-           (type pyramid-index pyramid-index))
+An uncovered card is available to be removed if there's a matching uncovered
+card to remove it with, or if it's a King."
+  (declare (pyramid-flags pyramid-flags)
+           (pyramid-index pyramid-index))
   (zerop (logand (the pyramid-flags (svref *pyramid-cover-masks* pyramid-index))
                  pyramid-flags)))
 
@@ -226,7 +201,7 @@ remove it with.  Covered cards can't be removed unless they're uncovered first."
 The rule is: if a card is gone, its children must be gone as well.  Knowing
 that there are only 1430 possible values lets us precalculate information we
 will use to run the solver faster."
-  (declare (optimize speed (safety 1) (debug 1)))
+  (declare (optimize speed (safety 0) (debug 1)))
   (flet ((invalidp (pyramid-flags)
            "It's impossible to have a card removed but descendants remaining."
            (declare (pyramid-flags pyramid-flags))
@@ -242,7 +217,7 @@ will use to run the solver faster."
           (push pyramid-flags all-flags))))))
 
 (defvar *all-pyramid-flags* (all-pyramid-flags)
-  "All values for pyramid-flags: no card removed unless it's uncovered first.")
+  "All valid PYRAMID-FLAGS values: no card removed unless it's uncovered.")
 
 (defvar *all-uncovered-indexes*
   (loop for pyramid-flags in *all-pyramid-flags*
@@ -250,79 +225,36 @@ will use to run the solver faster."
                       when (and (card-exists-p i pyramid-flags)
                                 (card-uncovered-p i pyramid-flags))
                       collect i))
-  "For all pyramid-flags, the indexes of cards that aren't covered.
-These are the cards on the pyramid that are available for removal because
-no other cards are blocking them.  The nth entry in this list matches the nth
-entry in *ALL-PYRAMID-FLAGS*.")
+  "For each PYRAMID-FLAGS, the PYRAMID-INDEXes of its uncovered cards.")
 
 (defvar *all-pyramid-indexes*
   (loop for pyramid-flags in *all-pyramid-flags*
         collect (loop for i from 0 to 27
                       when (card-exists-p i pyramid-flags)
                       collect i))
-  "For all pyramid-flags, the indexes of all cards that haven't been removed.
-This lets us perform processing for each card remaining on the pyramid without
-having to first go through each position 0-27 to find out which cards exist.
-The nth entry in this list matches the nth entry in *ALL-PYRAMID-FLAGS*.")
+  "For each PYRAMID-FLAGS, the PYRAMID-INDEXes of all cards in the pyramid.")
 
+
+
+;;; Functions and precalculated data for each deck of cards
 (defun card-values (deck)
   "A vector containing the numeric rank of each card in DECK."
   (map 'vector #'value deck))
 
-(defun bucket-cards-by-value (card-values)
-  "Bucket each card's deck-index into a vector according to its numeric value.
-For example, the result vector's index 1 would contain a list of all the
-positions of Aces in the deck."
-  (let ((card-buckets (make-array 14 :initial-element ())))
-    (dotimes (i 52 card-buckets)
-      (push i (svref card-buckets (svref card-values i))))))
-
-(defun card-bucket-masks (card-buckets)
-  "For each bucket from BUCKET-CARDS-BY-VALUE, a mask of the card indexes.
+(defun card-bucket-masks (card-values)
+  "For each card value (1 - 13), a mask of all DECK-INDEXes of that value.
 So index 1 would be a mask with the bits for each Ace's position set to 1.
 This is used to find out which Aces have not been removed yet."
-  (map 'vector
-       (lambda (indexes)
-         (reduce #'logior indexes :key #'mask))
-       card-buckets))
-
-(defun king-masks (card-values)
-  "Create a mapping from deck-index to a mask for removing it if it's a King.
-If the card at deck-index isn't a King the mapping returns NIL.  This lets us
-quickly check if a card is a king and also access a precalculated mask that
-removes the king."
-  (let ((masks (make-array 52 :initial-element nil)))
+  (let ((masks (make-array 14 :initial-element 0)))
     (dotimes (i 52 masks)
-      (when (= 13 (svref card-values i))
-        (setf (svref masks i) (invert (mask i)))))))
-
-(defun card-masks (card-values card-buckets)
-  "Create a mapping from two deck-indexes to a mask for removing them together.
-If the cards at those indexes don't add up to 13, the mapping returns NIL.
-This is a quick way to check if two cards match for removal together, and also
-access a precalculated mask to remove them."
-  (let ((masks (make-array '(52 52) :initial-element nil)))
-    (dotimes (i 52 masks)
-      (dolist (j (svref card-buckets (- 13 (svref card-values i))))
-        (setf (aref masks i j) (invert (logior (mask i) (mask j))))))))
+      (let ((card-value (svref card-values i)))
+        (setf (svref masks card-value)
+              (logior (svref masks card-value) (mask i)))))))
 
 (deftype successor-masks ()
   '(simple-array list (53 52)))
 
-(declaim (inline get-masks))
-(defun get-masks (deck-index other-indexes king-masks card-masks)
-  "Get card removal masks involving DECK-INDEX, with OTHER-INDEXES."
-  (declare (type deck-index deck-index)
-           (type (simple-vector 52) king-masks)
-           (type (simple-array t (52 52)) card-masks))
-  (let ((king-mask (svref king-masks deck-index)))
-    (if king-mask
-        (list king-mask)
-      (loop for i of-type deck-index in other-indexes
-            when (aref card-masks deck-index i)
-            collect it))))
-
-(defun successor-masks (uncovered-indexes king-masks card-masks)
+(defun successor-masks (uncovered-indexes card-values)
   "Create all card removal masks for a given pyramid state.
 UNCOVERED-INDEXES represents the uncovered cards in the pyramid state.
 For every possible combination of stock-index and waste-index, this will
@@ -336,29 +268,61 @@ index + uncovered indexes into one list and iteratively call GET-MASKS on each
 sublist, but for speed this caches lists of masks for just removing cards
 within the pyramid and ones where you remove a stock card with one from the
 pyramid, or by itself if it's a king."
-  (declare (optimize speed (safety 0))
-           (type (simple-vector 52) king-masks)
-           (type (simple-array t (52 52)) card-masks))
-  (let ((pyramid-masks (loop for (i . rest) on uncovered-indexes
-                             nconc (get-masks i rest king-masks card-masks)))
-        (stock-masks (make-array 53 :initial-element nil))
-        (masks (make-array '(53 52) :initial-element nil)))
-    (loop for i from 28 to 51
-          do (setf (svref stock-masks i)
-                   (get-masks i uncovered-indexes king-masks card-masks)))
-    (loop for i from 28 to 52
-          do (let ((sp-masks (append (svref stock-masks i) pyramid-masks)))
-               (loop for j from 27 below i
-                     do (let ((sw-mask (unless (or (stock-empty-p i)
-                                                   (waste-empty-p j))
-                                         (aref card-masks i j)))
-                              (wsp-masks (append (svref stock-masks j)
-                                                 sp-masks)))
-                          (setf (aref masks i j)
-                                (if sw-mask
-                                    (cons sw-mask wsp-masks)
-                                  wsp-masks))))))
-    masks))
+  (declare (optimize speed (safety 0) (debug 1))
+           ((simple-vector 52) card-values))
+  (labels ((kingp (index)
+             "Return T if the card at INDEX is a King."
+             (declare (deck-index index))
+             (= 13 (the fixnum (svref card-values index))))
+           (king-mask (index)
+             "Return a mask to remove the card if it's a King, or NIL."
+             (declare (deck-index index))
+             (when (kingp index)
+               (removal-mask index)))
+           (matchp (index1 index2)
+             "Return T if the cards at INDEX1 and INDEX2 add up to 13."
+             (declare (deck-index index1 index2))
+             (= 13 (the fixnum (+ (the fixnum (svref card-values index1))
+                                  (the fixnum (svref card-values index2))))))
+           (card-mask (index1 index2)
+             "Return a mask for removing both cards if they add to 13, or NIL."
+             (declare (deck-index index1 index2))
+             (when (matchp index1 index2)
+               (logand (removal-mask index1) (removal-mask index2))))
+           (get-masks (deck-index other-indexes)
+             "Return all removal masks using DECK-INDEX on OTHER-INDEXES."
+             (declare (deck-index deck-index))
+             (let ((king-mask (king-mask deck-index)))
+               (if king-mask
+                   (list king-mask)
+                 (loop for i in other-indexes
+                       when (card-mask deck-index i)
+                       collect it))))
+           (pyramid-masks ()
+             "Cache all removal masks involving any cards in UNCOVERED-INDEXES."
+             (loop for (i . rest) on uncovered-indexes
+                   nconc (get-masks i rest)))
+           (stock-masks ()
+             "Cache all removal masks using a stock card on UNCOVERED-INDEXES."
+             (loop with stock-masks = (make-array 54 :initial-element nil)
+                   for i of-type stock-index from 28 to 51
+                   do (setf (svref stock-masks i)
+                            (get-masks i uncovered-indexes))
+                   finally (return stock-masks))))
+    (declare (inline kingp king-mask matchp card-mask get-masks))
+    (loop with pyramid-masks = (pyramid-masks)
+          with stock-masks = (stock-masks)
+          with masks = (make-array '(53 52) :initial-element nil)
+          for i of-type fixnum from 28 to 52
+          for sp-masks = (append (svref stock-masks i) pyramid-masks)
+          do (loop for j of-type fixnum from 27 below i
+                   for sw-mask = (unless (or (stock-empty-p i)
+                                             (waste-empty-p j))
+                                   (card-mask i j))
+                   for wsp-masks = (append (svref stock-masks j) sp-masks)
+                   do (setf (aref masks i j)
+                            (if sw-mask (cons sw-mask wsp-masks) wsp-masks)))
+          finally (return masks))))
 
 (defun h-cost (existing-pyramid-indexes card-values)
   "Given the cards in the pyramid, estimate how many steps to clear the board.
@@ -428,7 +392,7 @@ covered by it."
   successor-masks
   h-cost
   unwinnable-masks)
-  
+
 (defun make-state-caches (deck)
   "Precalculate all the data we need to speed up processing for each state.
 The result is a hash table indexed by one of 1430 PYRAMID-FLAGS, and the hash
@@ -437,18 +401,15 @@ from each state), h-cost (A* heuristic function estimating how many steps to
 reach the goal), and unwinnable masks (masks to determine if there exists a
 card in the pyramid that can't be removed)."
   (loop with state-caches = (make-hash-table)
-        with card-values = (map 'vector #'value deck)
-        with card-buckets = (bucket-cards-by-value card-values)
-        with card-bucket-masks = (card-bucket-masks card-buckets)
-        with king-masks = (king-masks card-values)
-        with card-masks = (card-masks card-values card-buckets)
+        with card-values = (card-values deck)
+        with card-bucket-masks = (card-bucket-masks card-values)
         for pyramid-flags in *all-pyramid-flags*
         for uncovered-indexes in *all-uncovered-indexes*
         for all-indexes in *all-pyramid-indexes*
         do (setf (gethash pyramid-flags state-caches)
                  (make-state-cache
                   :successor-masks
-                  (successor-masks uncovered-indexes king-masks card-masks)
+                  (successor-masks uncovered-indexes card-values)
                   :h-cost
                   (h-cost all-indexes card-values)
                   :unwinnable-masks
@@ -649,9 +610,10 @@ of the vector."
     (make-bucket-queue :items (make-array size :initial-element nil)
                        :front size)))
 
+
 (defun solve (deck)
   "A* solver for Pyramid Solitaire for the given DECK."
-  (declare (optimize speed (safety 0) (debug 0)))
+  (declare (optimize speed (safety 0) (debug 1)))
   (let* ((state-caches (make-state-caches deck))
          (fringe (create-bucket-queue 100))
          (seen-states (make-hash-table))
@@ -685,13 +647,16 @@ of the vector."
                                  (+ next-depth
                                     (the (integer 0 28) (state-h-cost state-cache))))))))))))
 
+
+
+;;; Testing functions
 (defun run ()
   (let ((deck (string->deck "Th 2h 4d 3h Qd 8h 9h 5d Jc Td 7c 4c Ts Ac 9c 8d 5s 2s 7h 6s 7s 2c 9d Qs 3d 5c 5h Ad 8s Js 6c 9s 4h Kh Jd 4s 2d 6d Ks Qc 3s 3c Kc 7d Tc Ah 6h Qh Kd 8c As Jh")))
     (when (deckp deck)
       (solve deck))))
 
 (defun run-decks (&optional (filename "resources/random-decks.txt"))
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (optimize speed (safety 0) (debug 0)))
   (with-open-file (in filename)
     (loop for deck-string = (read-line in nil) and count of-type fixnum from 1
           while deck-string
@@ -700,3 +665,4 @@ of the vector."
                     (solution (solve deck))
                     (total-time (- (get-internal-real-time) start-time)))
                (format t "~S~%" (list deck solution count total-time))))))
+

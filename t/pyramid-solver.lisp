@@ -41,11 +41,6 @@
     (is (char= (schar card 0) (ps::rank card))
         "~A's rank should not be ~A" card (ps::rank card))))
 
-(test card-kingp
-  (is (null (set-difference (remove-if (complement #'ps::kingp) *all-cards*)
-                            '("Kc" "Kd" "Kh" "Ks")
-                            :test #'string=))))
-
 (defun card-value (card)
   (ecase (schar card 0)
     (#\A 1)
@@ -67,20 +62,6 @@
            (is (eql (card-value card) (ps::value card))
                "~A's value was returned as ~A" card (ps::value card))))
     (mapc #'values-match-p *all-cards*)))
-
-(defun card-match-p (card1 card2)
-  (member (sort (format nil "~C~C" (schar card1 0) (schar card2 0)) #'char<)
-          '("AQ" "2J" "3T" "49" "58" "67")
-          :test #'string=))
-
-(test card-matchp
-  (dolist (card1 *all-cards*)
-    (dolist (card2 *all-cards*)
-      (if (card-match-p card1 card2)
-          (is-true (ps::matchp card1 card2)
-                   "~A and ~A should match but don't" card1 card2)
-        (is-false (ps::matchp card1 card2)
-                  "~A and ~A should not match but do" card1 card2)))))
 
 (test string->deck
   (let ((deck (ps::string->deck (format nil "~A" *all-cards*))))
@@ -118,12 +99,12 @@
   (dotimes (i 52)
     (is (logbitp i (ps::mask i)))))
 
-(test invert
+(test removal-mask
   (dotimes (i 52)
-    (is (= (1- (ash 1 52)) (logxor (ash 1 i) (ps::invert (ash 1 i)))))))
+    (is (= (1- (ash 1 52)) (logxor (ash 1 i) (ps::removal-mask i))))))
 
 (test card-exists-p
-  (let ((missing-first-card (logand (ps::invert (ps::mask 0)) (1- (ash 1 52)))))
+  (let ((missing-first-card (logand (ps::removal-mask 0) (1- (ash 1 52)))))
     (dotimes (i 52)
       (if (= i 0)
           (is-false (logbitp i missing-first-card))
@@ -239,15 +220,8 @@ The row and column will be returned in a list, or NIL if not found."
         for actual-value across actual-values
         do (is (= expected-value actual-value))))
 
-(test bucket-cards-by-value
-  (let ((actual-buckets (ps::bucket-cards-by-value (ps::card-values *deck*))))
-    (loop for bucket across actual-buckets and value from 0
-          do (loop for deck-index in bucket
-                   do (is (= value (card-value (elt *deck* deck-index))))))))
-
 (test card-bucket-masks
-  (let ((actual-masks (ps::card-bucket-masks
-                       (ps::bucket-cards-by-value (ps::card-values *deck*))))
+  (let ((actual-masks (ps::card-bucket-masks (ps::card-values *deck*)))
         (expected-mask #b0000000000001000000000000100000000000010000000000001))
     (loop for i from 1 to 13
           do (is (= (ash expected-mask (1- i)) (svref actual-masks i))))))
@@ -256,46 +230,9 @@ The row and column will be returned in a list, or NIL if not found."
   "Create a card removal mask to remove a king at INDEX."
   (mask-field (byte 52 0) (lognot (ash 1 index))))
 
-(test king-masks
-  (let ((king-masks (ps::king-masks (ps::card-values *deck*))))
-    (dotimes (i 52)
-      (is (eql (svref king-masks i)
-               (case i
-                 ((12 25 38 51) (make-king-mask i))
-                 (otherwise nil)))))))
-
-(defun matchp (card1 card2)
-  "Return T if CARD1 and CARD2 are a match that can be removed together."
-  (let ((card2-rank (schar card2 0)))
-    (case (schar card1 0)
-      (#\A (char= #\Q card2-rank))
-      (#\2 (char= #\J card2-rank))
-      (#\3 (char= #\T card2-rank))
-      (#\4 (char= #\9 card2-rank))
-      (#\5 (char= #\8 card2-rank))
-      (#\6 (char= #\7 card2-rank))
-      (#\7 (char= #\6 card2-rank))
-      (#\8 (char= #\5 card2-rank))
-      (#\9 (char= #\4 card2-rank))
-      (#\T (char= #\3 card2-rank))
-      (#\J (char= #\2 card2-rank))
-      (#\Q (char= #\A card2-rank))
-      (otherwise nil))))
-
 (defun make-card-mask (index1 index2)
   "Create a card removal mask to remove INDEX1 and INDEX2."
   (mask-field (byte 52 0) (lognot (logior (ash 1 index1) (ash 1 index2)))))
-
-(test card-masks
-  (let* ((card-values (ps::card-values *deck*))
-         (card-buckets (ps::bucket-cards-by-value card-values))
-         (card-masks (ps::card-masks card-values card-buckets)))
-    (dotimes (index1 52)
-      (dotimes (index2 52)
-        (is (eql (if (matchp (elt *deck* index1) (elt *deck* index2))
-                     (make-card-mask index1 index2)
-                   nil)
-                 (aref card-masks index1 index2)))))))
 
 (defun successor-masks (uncovered-indexes stock-index waste-index card-values)
   "Return a list of all card removal masks involving the given indexes/cards."
@@ -319,11 +256,8 @@ The row and column will be returned in a list, or NIL if not found."
   (loop with start = 1200
         with end = 1220
         with card-values = (ps::card-values *deck*)
-        with card-buckets = (ps::bucket-cards-by-value card-values)
-        with kmasks = (ps::king-masks card-values)
-        with cmasks = (ps::card-masks card-values card-buckets)
         for uncovered-indexes in (subseq ps::*all-uncovered-indexes* start end)
-        for actual-masks = (ps::successor-masks uncovered-indexes kmasks cmasks)
+        for actual-masks = (ps::successor-masks uncovered-indexes card-values)
         do (loop for i from 28 to 52
                  do (loop for j from 27 below i
                           for expected = (successor-masks uncovered-indexes
@@ -390,8 +324,7 @@ be used to remove that card."
 
 (test unwinnable-masks
   (loop with card-values = (map 'vector #'ps::value *deck*)
-        with card-buckets = (ps::bucket-cards-by-value card-values)
-        with bucket-masks = (ps::card-bucket-masks card-buckets)
+        with bucket-masks = (ps::card-bucket-masks card-values)
         for all-indexes in ps::*all-pyramid-indexes*
         for actual = (ps::unwinnable-masks all-indexes card-values bucket-masks)
         for expected = (unwinnable-masks all-indexes *deck*)
