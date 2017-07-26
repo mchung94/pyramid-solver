@@ -615,7 +615,7 @@ of the vector."
   "A* solver for Pyramid Solitaire for the given DECK."
   (declare (optimize speed (safety 0) (debug 1)))
   (let* ((state-caches (make-state-caches deck))
-         (fringe (create-bucket-queue 100))
+         (fringe (create-bucket-queue 102))
          (seen-states (make-hash-table))
          (state +initial-state+)
          (node (cons 0 (list state)))
