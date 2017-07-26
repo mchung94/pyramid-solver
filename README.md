@@ -181,19 +181,20 @@ These are precalculated ahead of time and known before the program runs.
 - ```CARD-VALUES``` - Create a vector of each card's numeric value.  This can be used to check if a card index refers to a king, or if two card indexes add up to 13 and can be removed together.
 - ```CARD-BUCKET-MASKS``` - create a vector for each card value (1 - 13), holding a mask with bits set for each card in the deck with that value.  So index 1 would be a mask showing the position of each Ace in the deck.
 
-The four functions we need from a state can be assisted with these precalculations:
+#### State Precalculations
+The four functions we need from a state are assisted by the following precalculations:
 1. Check if the state is a goal state
    - We could precalculate this: only the PYRAMID-FLAGS value of 0 is a goal state.
    - But the solver doesn't precalculate this because it's easy to just check at runtime if bits 0-27 of a state are all zero.
 2. Check if a state is unwinnable
-   - For each remaining pyramid card that isn't a king, collect masks that check if there exists a card that can remove the pyramid card, using ```CARD-BUCKET-MASKS``` and ```*UNRELATED-CARD-MASKS*```.
-   - At runtime, to check if a state is unwinnable, mask off the bits from the state using each mask, and if the result is zero, that means there is a card can't be removed from the pyramid.
+   - Precalculation: for each remaining pyramid card that isn't a king, collect masks that check if there exists a card that can remove the pyramid card, using ```CARD-BUCKET-MASKS``` and ```*UNRELATED-CARD-MASKS*```.
+   - At runtime: to check if a state is unwinnable, mask off the bits from the state using each mask, and if the result is zero, that means there is a card can't be removed from the pyramid.
 3. Calculate the heuristic function on the state
-   - There's only 1430 pyramid flag values, so there's only 1430 possible values for the heuristic function, which can be calculated using ```*ALL-PYRAMID-INDEXES*``` and ```CARD-VALUES```.
-   - At runtime, we can just look up the value for the given state.
+   - Precalculation: there's only 1430 pyramid flag values, so there's only 1430 possible values for the heuristic function, which can be calculated using ```*ALL-PYRAMID-INDEXES*``` and ```CARD-VALUES```.
+   - At runtime: just look up the value for the given state.
 4. Calculate successor states for each possible action from the state
-   - For each of the 1430 pyramid flag values of ```*ALL-UNCOVERED-INDEXES*```, generate a 2D array indexed by ```STOCK-INDEX``` and ```WASTE-INDEX```.  For each combination of all 3 values, look for all combinations of cards that can be removed and generate a list of card removal masks.
-   - At runtime, when we generate successor states for each state, we have to handle drawing a card and recycling the waste pile, but every other action we can take is done by removing the cards indicated by each mask and then updating the stock index if necessary.
+   - Precalculation: for each of the 1430 pyramid flag values of ```*ALL-UNCOVERED-INDEXES*```, generate a 2D array indexed by ```STOCK-INDEX``` and ```WASTE-INDEX```.  For each combination of all 3 values, look for all combinations of cards that can be removed and generate a list of card removal masks.
+   - At runtime: when we generate successor states for each state, we have to handle drawing a card and recycling the waste pile, but the successor state for every other action we can take is created by removing the cards indicated by each mask and then updating the stock index if necessary.
 
 ## Search Node Representation
 In general, nodes for search algorithms like Breadth-First Search or A* have the following fields:
