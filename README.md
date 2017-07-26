@@ -213,7 +213,7 @@ For memory usage improvements, we don't use a class or struct to represent searc
 - Depth: ```(first node)```
 
 ## Priority Queue Implementation
-A general purpose [priority queue](https://en.wikipedia.org/wiki/Priority_queue) is unnecessary.  A [Bucket Queue](https://en.wikipedia.org/wiki/Bucket_queue) is very fast and makes sense for solving Pyramid Solitaire, since we only need to insert nodes, remove the minimum priority node, and check if the queue is empty.
+A general purpose [priority queue](https://en.wikipedia.org/wiki/Priority_queue) is unnecessary.  A [bucket queue](https://en.wikipedia.org/wiki/Bucket_queue) is very fast and makes sense for solving Pyramid Solitaire, since we only need to insert nodes, remove the minimum priority node, and check if the queue is empty.
 
 ### Minimum and Maximum Solution Lengths
 The shortest possible solution to Pyramid Solitaire is 15 steps.  This happens if each step removes two table cards, except the last two which can't be removed together since one covers the other.  13 pairs of table cards + 2 more for the last two cards.
@@ -227,5 +227,4 @@ The longest possible solution to Pyramid Solitaire would be 102 steps:
 6. Remove 24 pyramid cards by pairing with a card on the waste pile, which has no Kings.  The stock and waste piles are now empty. (98 steps so far)
 7. Remove the last 4 pyramid cards, which are Kings (102 steps).
 
-I don't think there exists a deck where that would be the shortest possible solution, but in any case, a bucket queue with buckets 0 to 102 would work for our priority queue.  This helped speed up the program a lot.
-
+I don't think there exists a deck where that would be the shortest possible solution, but in any case, a bucket queue with buckets 0 to 102 would work for our priority queue.
