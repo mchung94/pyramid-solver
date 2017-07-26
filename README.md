@@ -203,7 +203,7 @@ In general, nodes for search algorithms like Breadth-First Search or A* have the
 - Action: the action taken from the previous state to reach this state
 - Depth: the number of nodes from the initial state's node to this node
 
-For memory usage improvements, we don't use a class or struct to represent search nodes.  Creating tens of millions of these uses a lot of memory.  Instead, nodes are just lists of states starting with the current state and going back to the initial state (so the same parent node is shared by each successor state).  But also as a speed optimization, the first element of each node is the depth of the node.  So the fields can be generated like this:
+For memory usage improvements, we don't use a class or struct to represent search nodes.  Creating tens of millions of these uses a lot of memory.  Instead, nodes are just lists of states starting with the current state and going back to the initial state (so the same parent node is shared by each successor state's node).  But also as a speed optimization, the first element of each node is the depth of the node.  So the fields can be generated like this:
 - State: ```(second node)```
 - Parent State: ```(third node)```
 - Parent Node (minus its depth optimization): ```(cddr node)```
