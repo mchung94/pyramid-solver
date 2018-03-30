@@ -33,7 +33,7 @@
   "Results stored here - every other function refers to these results.
 This is for convenience, we're intending to run this analysis interactively.")
 
-(defun load-results (&optional (filename "v1.1.0-run-decks.txt"))
+(defun load-results (&optional (filename "run-decks-results.txt"))
   "Read the results from the filename into *RESULTS*."
   (with-open-file (in filename)
     (setf *results* (loop for result = (read in nil nil)
