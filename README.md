@@ -191,7 +191,7 @@ The way XOR works for states:
 - Precalculate: `(LOGXOR starting-state successor-state)` => successor-mask
 - While searching for a solution: `(LOGXOR starting-state successor-mask)` => successor-state
 
-During the precalculation phase, we don't actually know the entire successor state value - there's too many possible values for the stock/waste bit flags.  But we do know what the successor state's `PYRAMID-ID`, `CYCLE`, and if the `STOCK-INDEX` needs to be incremented, and that's what the successor mask changes.
+During the precalculation phase, we don't actually know the entire successor state value - there's too many possible values for the stock/waste bit flags.  But we do know the successor state's `PYRAMID-ID`, `CYCLE`, and whether or not the `STOCK-INDEX` needs to be incremented, and that's what the successor mask changes.
 
 The `SUCCESSOR-MASKS` function precalculates every successor mask for a deck of cards by taking each possible combination of `PYRAMID-ID`, `STOCK-INDEX`, `WASTE-INDEX`, and `CYCLE`, and calculating a list of successor masks for it.
 
