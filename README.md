@@ -26,11 +26,11 @@ If you're interested in Score and Card Challenges (maximizing score or clearing 
 ## Performance
 On an Intel i7-4770k CPU (3.5GHz, 3.9GHz max) with LispWorks on Windows 10:
 
-| Decks                | Mean (ms) | Median (ms) | Maximum (ms) | Total (min:sec) |
-|:-------------------- | ---------:| -----------:| ------------:| ---------------:|
-| 1500 random decks    |       940 |         281 |        46813 |           23:29 |  
-| 998 solvable decks   |       492 |         312 |         6750 |           08:10 |
-| 502 unsolvable decks |      1830 |         140 |        46813 |           15:19 |
+| Decks                | Mean (ms) | Standard Deviation (ms) | Median (ms) | Maximum (ms) | Total (min:sec) |
+|:-------------------- | ---------:| -----------------------:| -----------:| ------------:| ---------------:|
+| 1500 random decks    |       940 |                    2975 |         281 |        46813 |           23:29 |  
+| 998 solvable decks   |       492 |                     584 |         312 |         6750 |           08:10 |
+| 502 unsolvable decks |      1830 |                    4958 |         140 |        46813 |           15:19 |
 
 The slowest I found was the following deck which took 46 seconds to verify it's unsolvable:
 ```

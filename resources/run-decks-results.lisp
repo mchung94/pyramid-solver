@@ -38,9 +38,7 @@ This is for convenience, we're intending to run this analysis interactively.")
   (with-open-file (in filename)
     (setf *results* (loop for result = (read in nil nil)
                           while result
-                          collect result)))
-  ;; don't return anything to avoid clutter in the REPL
-  (values))
+                          collect result))))
 
 (defun result-deck (result)
   "Return the deck of cards used in the Pyramid Solitaire game result."
@@ -145,22 +143,29 @@ The second is 1+ the first.  The bottom row of the pyramid has no entry here.")
                                    *results*
                                    :key #'result-solution)))
 
-(defun sum (times)
-  (reduce #'+ times))
+(defun sum (numbers)
+  (reduce #'+ numbers))
 
-(defun mean (times)
-  (coerce (/ (sum times) (length times)) 'double-float))
+(defun mean (numbers)
+  (/ (sum numbers) (length numbers)))
 
-(defun median (times)
-  (let* ((sorted (sort (copy-seq times) #'<))
-         (length (length times))
+(defun standard-deviation (numbers)
+  (let ((mean (mean numbers)))
+    (labels ((square-of-distance-to-mean (number)
+               (expt (- number mean) 2)))
+      (sqrt (/ (sum (mapcar #'square-of-distance-to-mean numbers))
+               (length numbers))))))
+
+(defun median (numbers)
+  (let* ((sorted (sort (copy-seq numbers) #'<))
+         (length (length numbers))
          (mid (floor length 2)))
     (if (evenp length)
         (mean (list (elt sorted mid) (elt sorted (1- mid))))
       (elt sorted mid))))
 
-(defun maximum (times)
-  (reduce #'max times))
+(defun maximum (numbers)
+  (reduce #'max numbers))
 
 (defun total (times)
   (multiple-value-bind (minutes seconds)
@@ -174,6 +179,7 @@ The second is 1+ the first.  The bottom row of the pyramid has no entry here.")
       (let ((times-list (list (all-times) (win-times) (lose-times))))
         (format t "~&All Times, Win Times, Lose Times~%")
         (format t "Mean: ~A~%" (mapcar #'mean times-list))
+        (format t "Standard Deviation: ~A~%" (mapcar #'standard-deviation times-list))
         (format t "Median: ~A~%" (mapcar #'median times-list))
         (format t "Maximum: ~A~%" (mapcar #'maximum times-list))
         (format t "Total: ~A" (mapcar #'total times-list)))
