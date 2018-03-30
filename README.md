@@ -147,7 +147,7 @@ The following data is the same for any deck of cards:
 - `*PYRAMID-UNCOVERED-INDEXES*`: A vector, indexed by PYRAMID-ID, where each value is a list of the PYRAMID-INDEXes of the remaining uncovered cards in the pyramid.
 
 ## State Representation
-For speed we want a state representation where comparing if two states are equal is very fast.  The key idea is that we can build the state representation out of data that refers to the deck of cards, without having to store the actual deck of cards in the state itself.  Then we can pack all the data into a fixnum so that checking if two states are equal is the same as checking if two small integers are equal.
+For speed we want a state representation where checking if two states are equal is very fast.  The key idea is that we can build the state representation out of data that refers to the deck of cards, without having to store the actual deck of cards in the state itself.  Then we can pack all the data into a fixnum so that checking if two states are equal is the same as checking if two small integers are equal.
 
 To represent the state of the game at each step of play, we need to know:
 1. The cards remaining in the pyramid:
@@ -254,3 +254,8 @@ The longest possible solution to Pyramid Solitaire would be 102 steps:
 7. Remove the last 4 pyramid cards, which are Kings (102 steps).
 
 I don't think there exists a deck where that would be the shortest possible solution, but in any case, a bucket queue with buckets 0 to 102 would work for our priority queue.
+
+## Keeping Track of Visited States
+The simplest way for the solver to keep track of visited states is to use a hashtable where the states are the keys.
+
+But the code uses a vector of hashtables, indexed by the first 13 bits of the state (containing PYRAMID-ID and CYCLE).  This helps performance (in LispWorks at least) by partitioning the states so that as the hashtable grows, we don't have to rehash every state.
