@@ -153,7 +153,7 @@ To represent the state of the game at each step of play, we need to know:
 1. The cards remaining in the pyramid:
    - We use 11 bits to store a `PYRAMID-ID` value to describe this (an integer from 0 to 1429).
    - This is an index into all precalculated pyramid data described above.
-2. How many times the player has recycled the waste pile
+2. How many times the player has recycled the waste pile:
    - We use 2 bits to store a `CYCLE`, an integer from 0 to 2
 3. The cards in the stock and waste piles:
    - We use 24 bits to indicate which of the last 24 cards in the deck remain in the game.
@@ -190,6 +190,8 @@ A successor mask is a value that be combined with a state using exclusive or (XO
 The way XOR works for states:
 - Precalculate: `(LOGXOR starting-state successor-state)` => successor-mask
 - While searching for a solution: `(LOGXOR starting-state successor-mask)` => successor-state
+
+During the precalculation phase, we don't actually know the entire successor state value - there's too many possible values for the stock/waste bit flags.  But we do know what the successor state's `PYRAMID-ID`, `CYCLE`, and if the `STOCK-INDEX` needs to be incremented, and that's what the successor mask changes.
 
 The `SUCCESSOR-MASKS` function precalculates every successor mask for a deck of cards by taking each possible combination of `PYRAMID-ID`, `STOCK-INDEX`, `WASTE-INDEX`, and `CYCLE`, and calculating a list of successor masks for it.
 
@@ -258,4 +260,4 @@ I don't think there exists a deck where that would be the shortest possible solu
 ## Keeping Track of Visited States
 The simplest way for the solver to keep track of visited states is to use a hashtable where the states are the keys.
 
-But the code uses a vector of hashtables, indexed by the first 13 bits of the state (containing PYRAMID-ID and CYCLE).  This helps performance (in LispWorks at least) by partitioning the states so that as the hashtable grows, we don't have to rehash every state.
+But the code uses a vector of hashtables, indexed by the first 13 bits of the state (containing PYRAMID-ID and CYCLE).  This helps performance (in LispWorks at least) by partitioning the states so that as the hashtables grow and need to be rehashed, we don't have to rehash every state.
