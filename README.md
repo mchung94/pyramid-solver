@@ -28,11 +28,11 @@ On an Intel i7-4770k CPU (3.5GHz, 3.9GHz max) with LispWorks on Windows 10:
 
 | Decks                | Mean (ms) | Standard Deviation (ms) | Median (ms) | Maximum (ms) | Total (min:sec) |
 |:-------------------- | ---------:| -----------------------:| -----------:| ------------:| ---------------:|
-| 1500 random decks    |       940 |                    2975 |         281 |        46813 |           23:29 |  
-| 998 solvable decks   |       492 |                     584 |         312 |         6750 |           08:10 |
-| 502 unsolvable decks |      1830 |                    4958 |         140 |        46813 |           15:19 |
+| 1500 random decks    |       754 |                    2675 |         141 |        44234 |           18:51 |  
+| 998 solvable decks   |       354 |                     527 |         157 |         5313 |           05:53 |
+| 502 unsolvable decks |      1550 |                    4458 |          62 |        44234 |           12:58 |
 
-The slowest I found was the following deck which took 46 seconds to verify it's unsolvable:
+The slowest I found was the following deck which took 44 seconds to verify it's unsolvable:
 ```
             Th
           2h  4d

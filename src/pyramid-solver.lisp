@@ -493,17 +493,15 @@ because there is no longer any card available to remove it with."
     (when (zerop (logand (the state mask) state))
       (return-from state-unclearable-p t))))
 
-(defun state-successors (state pyramid-id successor-masks)
-  "Return a list of successor states one step after the given state."
+(declaim (inline state-successor-masks))
+(defun state-successor-masks (state pyramid-id successor-masks)
+  "Return a list of successor masks for the given state."
   (declare (state state) (pyramid-id pyramid-id) ((simple-vector 1430) successor-masks)
            (optimize speed (safety 0) (debug 1)))
   (let* ((stock-index (state-stock-index state))
          (waste-index (state-waste-index state stock-index))
-         (cycle (state-cycle state))
-         (masks (smref successor-masks pyramid-id stock-index waste-index cycle))
-         (successors ()))
-    (dolist (mask masks successors)
-      (push (state-adjust-stock-index (logxor state (the state mask))) successors))))
+         (cycle (state-cycle state)))
+    (smref successor-masks pyramid-id stock-index waste-index cycle)))
 
 
 
@@ -628,8 +626,9 @@ handle the parameters correctly."
      (setf state (second node))
      (setf pyramid-id (state-pyramid-id state))
      (when (pyramid-clear-p pyramid-id) (return-from solve (actions node deck)))
-     (dolist (next-state (state-successors state pyramid-id successor-masks))
-       (let* ((next-pyramid-id (state-pyramid-id next-state))
+     (dolist (mask (state-successor-masks state pyramid-id successor-masks))
+       (let* ((next-state (state-adjust-stock-index (logxor (the state state) (the state mask))))
+              (next-pyramid-id (state-pyramid-id next-state))
               (seen-depth (get-state-cache next-state seen-states))
               (next-depth (1+ (the (integer 0 101) (first node)))))
          (when (or (not seen-depth)

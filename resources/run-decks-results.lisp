@@ -178,7 +178,7 @@ The second is 1+ the first.  The bottom row of the pyramid has no entry here.")
   (if *results*
       (let ((times-list (list (all-times) (win-times) (lose-times))))
         (format t "~&All Times, Win Times, Lose Times~%")
-        (format t "Mean: ~A~%" (mapcar #'mean times-list))
+        (format t "Mean: ~A~%" (mapcar #'round (mapcar #'mean times-list)))
         (format t "Standard Deviation: ~A~%" (mapcar #'standard-deviation times-list))
         (format t "Median: ~A~%" (mapcar #'median times-list))
         (format t "Maximum: ~A~%" (mapcar #'maximum times-list))
