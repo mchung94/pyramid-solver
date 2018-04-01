@@ -247,11 +247,12 @@ to 51 are the rest of the stock pile cards.  52 means the stock pile is empty."
 (defun state-adjust-stock-index (state)
   "Return a new copy of STATE making sure STOCK-INDEX is pointing to an existing card or empty."
   (declare (state state))
-  (do* ((stock-index (state-stock-index state) (1+ stock-index))
-        (mask (ash 1 stock-index) (ash mask 1)))
-       ((or (stock-empty-p stock-index) (not (zerop (logand mask state))))
-        (logior (the state (logand state #xffffffff81fff)) (the state (ash stock-index 13))))
-    (declare (stock-index stock-index) (state mask))))
+  (do ((stock-index (state-stock-index state) (1+ stock-index)))
+      ((or (stock-empty-p stock-index)
+           (not (zerop (logand state (the state (ash 1 stock-index))))))
+       (the state (logior (the state (logand state #xffffffff81fff))
+                          (the state (ash stock-index 13)))))
+    (declare (stock-index stock-index))))
 
 (deftype waste-index ()
   "An index into DECK-FLAGS pointing to the top card of the waste pile.  Cards with lower index
