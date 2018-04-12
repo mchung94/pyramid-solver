@@ -55,14 +55,14 @@
         collect substring))
 
 (defun deck->string (deck)
-  (apply #'format nil `("            ~A
+  (apply #'format nil "            ~A
           ~A  ~A
         ~A  ~A  ~A
       ~A  ~A  ~A  ~A
     ~A  ~A  ~A  ~A  ~A
   ~A  ~A  ~A  ~A  ~A  ~A
 ~A  ~A  ~A  ~A  ~A  ~A  ~A
-~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A" ,@deck)))
+~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A ~A" deck))
 
 
 
