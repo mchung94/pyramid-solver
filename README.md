@@ -48,44 +48,48 @@ The slowest I found was the following deck which took 44 seconds to verify it's 
 # Usage
 
 ## Command Line program
-1. Create a plain text file (in Notepad for example) containing the cards for the Pyramid Solitaire deck.  See the Pyramid above as an example.  You don't have to add spaces or newlines to make it look nice - the program searches for any card rank (A23456789TJQK) followed by suit (cdhs).
-2. Open a command prompt.
-3. Run "pyramid-solver.exe filename" where filename is the name of the text file containing the cards.
-4. pyramid-solver.exe will detect problems such as missing cards, too many cards, or malformed cards.  After running it will either say no solution exists, or say how many steps are in the solution, followed by the steps required to solve the deck.
+1. For Windows, [download the latest release](https://github.com/mchung94/pyramid-solver/releases) and unzip the file.
+2. Create a plain text file (in Notepad for example) containing the cards for the Pyramid Solitaire deck.  See the Pyramid above as an example.  You don't have to add spaces or newlines to make it look nice - the program searches for any card rank (A23456789TJQK) followed by suit (cdhs).
+3. Open a command prompt at the folder containing the downloaded executable in step 1.
+4. Run "pyramid-solver.exe filename" where filename is the name of the text file containing the cards.
+5. pyramid-solver.exe will detect problems such as missing cards, too many cards, or malformed cards.  After running it will either say no solution exists, or say how many steps are in the solution, followed by the steps required to solve the deck.
 
 ## Source Code
-- To load the system:
-  - (asdf:load-system "pyramid-solver")
-- To run the tests:
-  - (asdf:test-system "pyramid-solver")
-- To find a solution to Pyramid Solitaire using a string representation of a card deck:
-  - (ps:solve (ps:string->card-list "6d 5h Ah Jd 4s Ks 6s 8c 2h 4d 9s Kd 6c Ad 8s Ac 5c 9d 7h 3h 8d 5s 4c Qc Jh Kc Kh 3c 3s 9c As 5d Qh Ts 4h 7s Td 9h Th 7c 8h 2c 7d Tc 2d 6h 2s Js Qd 3d Qs Jc"))
-- If you want to, you can remove the (in-package #:pyramid-solver) from [src/pyramid-solver.lisp](src/pyramid-solver.lisp) and load that file on its own.
+### Requirements
+- [ASDF 3](https://common-lisp.net/project/asdf/) for the system definition.
+- [FiveAM](https://common-lisp.net/project/fiveam/) if running the tests.
+- A Common Lisp implementation where 52-bit values (unsigned-byte 52) are
+  fixnums.  LispWorks Personal Edition won't work because it will reach its
+  memory usage limit and exit.  [SBCL](http://www.sbcl.org/platform-table.html)
+  is the best choice as long as it's a 64-bit version.
+- Most of the time, it needs a few hundred MB of RAM, but some decks use a few
+  GB of RAM.
 
-The card deck example above would look like this in the game:
-```
-            6d
-          5h  Ah
-        Jd  4s  Ks
-      6s  8c  2h  4d
-    9s  Kd  6c  Ad  8s
-  Ac  5c  9d  7h  3h  8d
-5s  4c  Qc  Jh  Kc  Kh  3c
-top of deck-> 3s 9c As 5d Qh Ts 4h 7s Td 9h Th 7c 8h 2c 7d Tc 2d 6h 2s Js Qd 3d Qs Jc <- bottom of deck
-```
-  
-Cards are two letters containing rank (A23456789TJQK) followed by suit (cdhs).  The solution returned is either NIL when no solution exists, or a list of the following types of steps to win the game:
-- "Draw", which means draw a card from the top of the deck to the top of the waste pile
-- "Recycle", which means draw the cards in the waste pile back onto the deck so that they will be drawn from the deck in the same order again
-- A list of one or two cards to remove, for example ("Kd") to remove the King of Diamonds or ("6h" "7c") to remove the 6 of Hearts and 7 of Clubs together.
+#### SBCL
+1. Download [SBCL](http://www.sbcl.org/platform-table.html) and make sure it's
+a 64 bit version (releases in the "AMD64" column and not "X86").
+2. Run SBCL like this: `sbcl --dynamic-space-size 8192`.  If you don't
+use --dynamic-space-size, it will run into its memory usage limit and exit.
+3. Type `(require "asdf")` and press Enter.
+4. Write down the directory/folder that the source code is in and add it to the
+ASDF central registry.  For example, if the code is in
+`C:/github/pyramid-solver/`, type `(push "C:/github/pyramid-solver/" asdf:*central-registry*)`.  It's important to have the last slash at the end of the
+directory name.
+5. Type `(asdf:load-system "pyramid-solver")`
+6. To find a solution using a string representation of a card deck:
+   - `(ps:solve (ps:string->card-list "6d 5h Ah Jd 4s Ks 6s 8c 2h 4d 9s Kd 6c Ad 8s Ac 5c 9d 7h 3h 8d 5s 4c Qc Jh Kc Kh 3c 3s 9c As 5d Qh Ts 4h 7s Td 9h Th 7c 8h 2c 7d Tc 2d 6h 2s Js Qd 3d Qs Jc"))`
 
-## Requirements
-- ASDF for the system definition
-- FiveAM for running the tests
-- A Common Lisp implementation where 52-bit values (unsigned-byte 52) are fixnums
-- Most of the time, it needs a few hundred MB of RAM, but some decks use a few GB of RAM
+#### LispWorks Personal Edition
+LispWorks Personal Edition is not recommended because of its heap usage limit.
+It will run into the memory usage limit and immediately exit.
 
-pyramid-solver is developed using LispWorks 7.1 64-bit on Windows but also tested with SBCL 1.4.2 64-bit.  With SBCL, I had to start it with the --dynamic-space-size set to something large (a few GB) to avoid heap exhaustion on some decks.
+#### Loading src/pyramid-solver.lisp on its own
+If nothing else works, the next thing that may help is to do the following:
+1. Edit [src/pyramid-solver.lisp](src/pyramid-solver.lisp) and remove the
+   first line, `(in-package #:pyramid-solver)`.
+2. Compile and load that file by itself.
+3. To find a solution using a string representation of a card deck:
+   - `(solve (string->card-list "6d 5h Ah Jd 4s Ks 6s 8c 2h 4d 9s Kd 6c Ad 8s Ac 5c 9d 7h 3h 8d 5s 4c Qc Jh Kc Kh 3c 3s 9c As 5d Qh Ts 4h 7s Td 9h Th 7c 8h 2c 7d Tc 2d 6h 2s Js Qd 3d Qs Jc"))`
 
 # Programming Notes
 The rest of this document contains information for other programmers about how this program works.
@@ -261,3 +265,4 @@ I don't think there exists a deck where that would be the shortest possible solu
 The simplest way for the solver to keep track of visited states is to use a hashtable where the states are the keys.
 
 But the code uses a vector of hashtables, indexed by the first 13 bits of the state (containing PYRAMID-ID and CYCLE).  This helps performance (in LispWorks at least) by partitioning the states so that as the hashtables grow and need to be rehashed, we don't have to rehash every state.
+

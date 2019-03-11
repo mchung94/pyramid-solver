@@ -516,8 +516,8 @@ It'll either be a list of cards that were removed, the string 'Draw', or the str
          (stock-flags-diff (mask-field (byte 24 28) diffs)))
     (cond ((not (zerop cycle-diff)) "Recycle")
           ((or (not (zerop pyramid-id-diff)) (not (zerop stock-flags-diff)))
-           (loop with prev = (svref ps::*pyramid-flags* (mask-field (byte 11 0) previous-state))
-                 with curr = (svref ps::*pyramid-flags* (mask-field (byte 11 0) current-state))
+           (loop with prev = (svref *pyramid-flags* (mask-field (byte 11 0) previous-state))
+                 with curr = (svref *pyramid-flags* (mask-field (byte 11 0) current-state))
                  with deck-removed-card-flags = (logior stock-flags-diff (logxor prev curr))
                  for i from 0 to 51
                  when (logbitp i deck-removed-card-flags)
