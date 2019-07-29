@@ -43,8 +43,8 @@
 (defun standard-deck-p (obj)
   "Standard Decks are proper lists containing exactly all the cards of a 52-card deck."
   (and (listp obj)
-       (handler-case (= 52 (list-length obj))
-         (type-error () nil)) ; dotted lists can't be standard decks
+       (handler-case (= 52 (length obj))
+         (type-error () nil)) ; improper lists can't be standard decks
        (null (missing-cards obj))))
 
 (defun string->card-list (string)
