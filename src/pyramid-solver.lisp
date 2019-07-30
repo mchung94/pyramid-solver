@@ -88,39 +88,42 @@ The bits refer to the pyramid cards in this order:
   '(integer 0 1429))
 
 (defun all-pyramid-flags ()
-  "Calculate all valid PYRAMID-FLAGS values.  The rule is: a pyramid card can't be removed until
-all the cards covering it from below are removed."
-  (labels ((previous-row-optional-indexes (row-flags num-cards-in-row)
-             "Return the card offsets of the previous row that don't need to have a card."
-             (loop for i from 0 below (1- num-cards-in-row)
-                   when (zerop (mask-field (byte 2 i) row-flags))
-                   collect i))
-           (previous-rows (row-flags num-cards-in-row)
+  "Return a vector of all 1430 valid PYRAMID-FLAGS values.
+The rule is a pyramid card can't be removed unless all the cards covering it
+from below are removed first."
+  (labels ((power-set (list)
+             "Return a list of all subsets of elements in the list."
+             (loop with length = (length list)
+                   for flags from 0 below (ash 1 length)
+                   collect (loop for index from 0 below length
+                                 when (logbitp index flags)
+                                 collect (elt list index))))
+           (optional-masks (bits num-bits)
+             "Return a list of masks indicating previous row optional cards."
+             (loop for i from 0 to (- num-bits 2)
+                   for mask = #0b11 then (ash mask 1)
+                   unless (logtest mask bits)
+                   collect (ash 1 i)))
+           (previous-rows (bits num-bits)
              "Return all valid card existence bit flags for the previous row."
-             (loop with indexes = (previous-row-optional-indexes row-flags num-cards-in-row)
-                   with all-cards-mask = (1- (ash 1 (1- num-cards-in-row)))
-                   ;; flags iterates through all combinations of optional cards
-                   for flags from 0 below (ash 1 (length indexes))
-                   for masks = (loop for index in indexes
-                                     for i from 0
-                                     when (logbitp i flags)
-                                     collect (ash 1 index))
-                   collect (logandc2 all-cards-mask (reduce #'logior masks))))
+             (loop with all-bits-on = (1- (ash 1 (1- num-bits)))
+                   for masks in (power-set (optional-masks bits num-bits))
+                   collect (logandc2 all-bits-on (reduce #'logior masks))))
            (pyramid-flags (&rest row-flags)
              "Return a PYRAMID-FLAGS given card existence bits for each row."
              (reduce #'logior (mapcar #'ash row-flags '(0 1 3 6 10 15 21)))))
-    (let ((all ()))
-      ;; for all possible combinations of existing cards on the bottom row, we calculate all
-      ;; possible combinations of existing cards for each previous row, and then combine them all
-      ;; into valid PYRAMID-FLAGS values
-      (dotimes (row7 (ash 1 7) (sort (coerce all 'vector) #'<))
-        (dolist (row6 (previous-rows row7 7))
-          (dolist (row5 (previous-rows row6 6))
-            (dolist (row4 (previous-rows row5 5))
-              (dolist (row3 (previous-rows row4 4))
-                (dolist (row2 (previous-rows row3 3))
-                  (dolist (row1 (previous-rows row2 2))
-                    (push (pyramid-flags row1 row2 row3 row4 row5 row6 row7) all)))))))))))
+    (let ((all '()))
+      ;; for all possible combinations of cards on the bottom row, calculate
+      ;; all possible combinations of cards for each previous row, then combine
+      ;; them all into PYRAMID-FLAGS values
+      (dotimes (r7 (ash 1 7) (sort (coerce all 'vector) #'<))
+        (dolist (r6 (previous-rows r7 7))
+          (dolist (r5 (previous-rows r6 6))
+            (dolist (r4 (previous-rows r5 5))
+              (dolist (r3 (previous-rows r4 4))
+                (dolist (r2 (previous-rows r3 3))
+                  (dolist (r1 (previous-rows r2 2))
+                    (push (pyramid-flags r1 r2 r3 r4 r5 r6 r7) all)))))))))))
 
 (defvar *pyramid-flags* (all-pyramid-flags)
   "All valid PYRAMID-FLAGS values.")
