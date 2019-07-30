@@ -7,11 +7,6 @@
 (defvar *suit-characters* "cdhs"
   "All valid card suit characters.")
 
-(defvar *all-cards* (loop for suit across *suit-characters*
-                          nconc (loop for rank across *rank-characters*
-                                      collect (format nil "~C~C" rank suit)))
-  "All the cards in a standard 52-card deck.")
-
 (defun cardp (obj)
   "Cards are two-letter strings containing a rank followed by a suit."
   (and (stringp obj)
@@ -19,15 +14,21 @@
        (find (char obj 0) *rank-characters*)
        (find (char obj 1) *suit-characters*)))
 
+(defun make-card (rank suit)
+  "Create a new card with the given rank and suit."
+  (format nil "~C~C" rank suit))
+
 (defun card-value (card)
   "Return the numeric value of the card: A is always 1, J=11, Q=12, and K=13."
   (1+ (position (char card 0) *rank-characters*)))
 
 (defun missing-cards (list)
   "Return a list of the standard deck cards that are missing from LIST."
-  (remove-if (lambda (card)
-               (find card list :test #'equal))
-             *all-cards*))
+  (loop for suit across *suit-characters*
+        nconc (loop for rank across *rank-characters*
+                    for card = (make-card rank suit)
+                    unless (member card list :test #'equal)
+                    collect card)))
 
 (defun duplicate-cards (list)
   "Return a list of the cards that are duplicated in LIST."
