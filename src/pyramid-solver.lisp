@@ -102,7 +102,7 @@ from below are removed first."
            (optional-masks (bits num-bits)
              "Return a list of masks indicating previous row optional cards."
              (loop for i from 0 to (- num-bits 2)
-                   for mask = #0b11 then (ash mask 1)
+                   for mask = #b11 then (ash mask 1)
                    unless (logtest mask bits)
                    collect (ash 1 i)))
            (previous-rows (bits num-bits)
