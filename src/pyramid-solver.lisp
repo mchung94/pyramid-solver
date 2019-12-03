@@ -92,39 +92,25 @@ The bits refer to the pyramid cards in this order:
   "Return a vector of all 1430 valid PYRAMID-FLAGS values.
 The rule is a pyramid card can't be removed unless all the cards covering it
 from below are removed first."
-  (labels ((power-set (list)
-             "Return a list of all subsets of elements in the list."
-             (loop with length = (length list)
-                   for flags from 0 below (ash 1 length)
-                   collect (loop for index from 0 below length
-                                 when (logbitp index flags)
-                                 collect (elt list index))))
-           (optional-masks (bits num-bits)
-             "Return a list of masks indicating previous row optional cards."
-             (loop for i from 0 to (- num-bits 2)
-                   for mask = #b11 then (ash mask 1)
-                   unless (logtest mask bits)
-                   collect (ash 1 i)))
-           (previous-rows (bits num-bits)
-             "Return all valid card existence bit flags for the previous row."
-             (loop with all-bits-on = (1- (ash 1 (1- num-bits)))
-                   for masks in (power-set (optional-masks bits num-bits))
-                   collect (logandc2 all-bits-on (reduce #'logior masks))))
-           (pyramid-flags (&rest row-flags)
-             "Return a PYRAMID-FLAGS given card existence bits for each row."
-             (reduce #'logior (mapcar #'ash row-flags '(0 1 3 6 10 15 21)))))
-    (let ((all '()))
-      ;; for all possible combinations of cards on the bottom row, calculate
-      ;; all possible combinations of cards for each previous row, then combine
-      ;; them all into PYRAMID-FLAGS values
-      (dotimes (r7 (ash 1 7) (sort (coerce all 'vector) #'<))
-        (dolist (r6 (previous-rows r7 7))
-          (dolist (r5 (previous-rows r6 6))
-            (dolist (r4 (previous-rows r5 5))
-              (dolist (r3 (previous-rows r4 4))
-                (dolist (r2 (previous-rows r3 3))
-                  (dolist (r1 (previous-rows r2 2))
-                    (push (pyramid-flags r1 r2 r3 r4 r5 r6 r7) all)))))))))))
+  (labels ((make-pyramid-flags (pyramid)
+             (reduce #'logior (mapcar #'ash pyramid '(0 1 3 6 10 15 21))))
+           (valid-row-p (row row-size next-row)
+             (loop for i from 0 below row-size
+                   always (or (logbitp i row)
+                              (zerop (mask-field (byte 2 i) next-row)))))
+           (add-row (row-size pyramids)
+             (loop for row from 0 below (ash 1 row-size)
+                   nconc (loop for pyramid in pyramids
+                               when (valid-row-p row row-size (first pyramid))
+                               collect (cons row pyramid))))
+           (build-flags (row-size pyramids)
+             (if (zerop row-size)
+                 (sort (map 'vector #'make-pyramid-flags pyramids) #'<)
+               (build-flags (1- row-size) (add-row row-size pyramids)))))
+    ;; This needs to be fast or there will be delays during compilation.
+    ;; Basically this builds valid pyramids recursively bottom-up as lists of
+    ;; row flags, then converts each pyramid into a pyramid-flags value.
+    (build-flags 6 (loop for row from 0 below (ash 1 7) collect (list row)))))
 
 (defvar *pyramid-flags* (all-pyramid-flags)
   "All valid PYRAMID-FLAGS values.")
