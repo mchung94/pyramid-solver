@@ -37,8 +37,8 @@
   (is (equal '("Ac" "2c") (ps::missing-cards (cddr *ordered-deck*)))))
 
 (test duplicate-cards ()
-  (is (null (pyramid-solver::duplicate-cards *ordered-deck*)))
-  (is (equal '("Ks" "Ks") (pyramid-solver::duplicate-cards (cons "Ks" *ordered-deck*)))))
+  (is (null (ps::duplicate-cards *ordered-deck*)))
+  (is (equal '("Ks" "Ks") (ps::duplicate-cards (cons "Ks" *ordered-deck*)))))
 
 (test deckp ()
   (is (ps::deckp *ordered-deck*))
@@ -51,7 +51,7 @@
     (is (not (ps::deckp dotted-list)))))
 
 (test string-to-card-list
-  (is (equal *ordered-deck* (pyramid-solver::string-to-card-list "
+  (is (equal *ordered-deck* (ps::string-to-card-list "
               Ac M
             2c  3cC
           4c  5c  6ca
